@@ -1,6 +1,7 @@
 #include <SFML/Graphics.hpp>
 #include <vector>
 #include <stdlib.h>
+#include <iostream>
 
 #include "ball.hpp"
 #include "vector.hpp"
@@ -19,6 +20,7 @@ void applyGravity( std::vector<gp::Ball> &balls, float frameTime );
 int main()
 {
 	sf::RenderWindow window( sf::VideoMode( RESX, RESY ), "Balls!");
+	window.setFramerateLimit(60);
 	sf::Clock timer;
 	sf::Time elapsed;
 	float frameTime;
@@ -32,7 +34,7 @@ int main()
 	std::vector<gp::Ball> balls;
 	for ( int i = 0; i < NUM_OF_BALLS; i++ ) {
 		gp::Ball ball;
-		ball.pos = gp::Vector( rand()%RESX, rand()%RESY );
+		ball.setPosition(rand()%RESX, rand()%RESY);
 		ball.sprite.setTexture(ballTexture);
 		ball.vel = gp::Vector( 0, 0 );
 		balls.push_back(ball);
@@ -45,6 +47,7 @@ int main()
 		elapsed = timer.restart();
 		frameTime = elapsed.asSeconds();
 
+
 		sf::Event event;
 		while (window.pollEvent(event))
 		{
@@ -53,13 +56,16 @@ int main()
 		}
 
 		blackHole.processBalls( balls, frameTime );
-		collisonUpdate( balls, frameTime);
-		applyGravity ( balls, frameTime);
+		collisonUpdate( balls, frameTime );
+		applyGravity ( balls, frameTime );
+
+		for ( int i = 0; i < balls.size(); i++ )
+			balls[i].update( frameTime );
 
 		window.clear();
 		window.draw(bg);
-		for ( int i = 0; i < balls.size(); i++ ) {
-			balls[i].sprite.setPosition(balls[i].pos.x, balls[i].pos.y);
+		std::cout << balls[0].pos.x << std::endl;
+		for ( int i = 0; i < balls.size(); i++ ){
 			window.draw(balls[i].sprite);
 		}
 		window.display();
