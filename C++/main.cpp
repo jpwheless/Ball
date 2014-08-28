@@ -74,6 +74,7 @@ int main()
 	return 0;
 }
 
+// Rebound efficiency not complete
 void collisonUpdate( std::vector<gp::Ball> &ball, float frameTime ){
 	int size = ball.size();
 	for (int i = 0; i < size; i++) {
@@ -82,14 +83,20 @@ void collisonUpdate( std::vector<gp::Ball> &ball, float frameTime ){
 			for (int j = i+1; j < size; j++) {
 				if ( ball[j].alive ) {
 					float distance = sqrt( pow(ball[i].pos.x - ball[j].pos.x, 2 ) + pow( ball[i].pos.y - ball[j].pos.y, 2 ));
-					float neutralDistance  =ball[i].radius + ball[j].radius;
+					float neutralDistance = ball[i].radius + ball[j].radius;
 					if (distance < neutralDistance) { // Particles are colliding
-						float term = (ball[i].springRate*( neutralDistance - distance ) / frameTime);
+						float springTerm = (ball[i].springRate*( neutralDistance - distance ) / (2.f*frameTime));
+						float xDir = ((ball[j].pos.x - ball[i].pos.x) / distance)
+						float yDir = ((ball[j].pos.y - ball[i].pos.y) / distance)
 
-						ball[j].vel.x += ( (ball[j].pos.x - ball[i].pos.x) / distance ) * term;
-						ball[i].vel.x += ( (ball[i].pos.x - ball[j].pos.x) / distance ) * term;
-						ball[j].vel.y += ( (ball[j].pos.y - ball[i].pos.y) / distance ) * term;
-						ball[i].vel.y += ( (ball[i].pos.y - ball[j].pos.y) / distance ) * term;
+						ball[j].vel.x += xDir * springTerm * 
+							(ball[j].vel.x - ball[i].vel.x > 0.f) ? ball[j].reboundEfficiency : 1.f;
+						ball[i].vel.x -= xDir * springTerm * 
+							(ball[j].vel.x - ball[i].vel.x > 0.f) ? ball[i].reboundEfficiency : 1.f;
+						ball[j].vel.y += yDir * springTerm * 
+							(ball[j].vel.y - ball[i].vel.y > 0.f) ? ball[j].reboundEfficiency : 1.f;
+						ball[i].vel.y -= yDir * springTerm * 
+							(ball[j].vel.y - ball[i].vel.y > 0.f) ? ball[i].reboundEfficiency : 1.f;
 					}
 				} 
 			}
@@ -97,35 +104,33 @@ void collisonUpdate( std::vector<gp::Ball> &ball, float frameTime ){
 	}
 }
 
-// JON FIX THIS FOR THE LOVE OF GOD!
 void applyGravity( std::vector<gp::Ball> &ball, float frameTime ){
 	for (int i = 0; i < ball.size(); i++) {
-	  if ( ball[i].alive ) {
-		 if (ball[i].pos.x > RESX ) {
-			// Ball linear spring rate w/ wall rebound efficiency
-			ball[i].vel.x += ((RESX) - ball[i].pos.x)*ball[i].springRate*
-				((ball[i].vel.x < 0) ? WALL_REB_EFF : 1.0)* frameTime;
-		 }
-		 else if (ball[i].pos.x < 0) {         
-			ball[i].vel.x += (ball[i].pos.x)*ball[i].springRate*
-				((ball[i].vel.x > 0) ? WALL_REB_EFF : 1.0)* frameTime;
-		 }
-		 else {
-			ball[i].vel.x += X_GRAV* frameTime;
-		 }
-		 
-		 if (ball[i].pos.y > RESY ) {
-			// Ball linear spring rate w/ wall rebound efficiency
-			ball[i].vel.y += ((RESY) - ball[i].pos.y)*ball[i].springRate*
-				((ball[i].vel.y < 0) ? WALL_REB_EFF : 1.0)* frameTime;
-		 }
-		 else if (ball[i].pos.y < 0) {
-			ball[i].vel.y += (ball[i].pos.y)*ball[i].springRate*
-				((ball[i].vel.y > 0) ? WALL_REB_EFF : 1.0)* frameTime;
-		 }
-		 else {
-			ball[i].vel.y += Y_GRAV* frameTime;
-		 }
-	  }
-   }
+		if ( ball[i].alive ) {
+		
+			if (ball[i].pos.x + ball[i].radius > RESX ) {
+				ball[i].vel.x += (RESX - (ball[i].pos.x + ball[i].radius)) * ball[i].springRate *
+					((ball[i].vel.x < 0) ? WALL_REB_EFF : 1.0) * frameTime;
+			}
+			else if (ball[i].pos.x - ball[i].radius < 0) {
+				ball[i].vel.x += (ball[i].pos.x - ball[i].radius) * ball[i].springRate *
+					((ball[i].vel.x > 0) ? WALL_REB_EFF : 1.0) * frameTime;
+			}
+			else {
+				ball[i].vel.x += X_GRAV* frameTime;
+			}
+			
+			if (ball[i].pos.y + ball[i].radius  > RESY ) {
+				ball[i].vel.y += (RESY - (ball[i].pos.y + ball[i].radius)) * ball[i].springRate *
+					((ball[i].vel.y < 0) ? WALL_REB_EFF : 1.0) * frameTime;
+			}
+			else if (ball[i].pos.y - ball[i].radius < 0) {
+				ball[i].vel.y += (ball[i].pos.y - ball[i].radius)*ball[i].springRate *
+					((ball[i].vel.y > 0) ? WALL_REB_EFF : 1.0) * frameTime;
+			}
+			else {
+				ball[i].vel.y += Y_GRAV* frameTime;
+			}
+		}
+	}
 }

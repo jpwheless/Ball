@@ -13,6 +13,7 @@ public:
 	float diameter;
 	float radius;
 	float springRate;
+	float reboundEfficiency;
 	sf::Sprite sprite;
 	bool alive;
 
