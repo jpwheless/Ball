@@ -1,5 +1,5 @@
 #ifndef BLACK_HOLE_HPP
-#define BLACK_HOLE4_HPP
+#define BLACK_HOLE_HPP
 
 #include <SFML/Graphics.hpp>
 #include <vector>
@@ -54,12 +54,12 @@ public:
 		if ( interact == COLLISION ) {
 			for ( int i = 0; i < ball.size(); i++ ){
 				if(ball[i].alive){
-					float radius = sqrt( pow(ball[i].pos.x - x, 2 ) + pow( ball[i].pos.y - y, 2 ));
+					float radius = sqrt( pow(ball[i].x - x, 2 ) + pow( ball[i].y - y, 2 ));
 					if ( radius < ( ball[i].diameter / 2.f) ) { 
 						float term = ball[i].springRate * ((ball[i].diameter + diameter) / 2.f - radius ) * frameTime;
 						
-						ball[i].vel.x += (( ball[i].pos.x - x ) / radius ) * term;
-						ball[i].vel.y += (( ball[i].pos.y - y ) / radius ) * term;
+						ball[i].xVel += (( ball[i].x - x ) / radius ) * term;
+						ball[i].yVel += (( ball[i].y - y ) / radius ) * term;
 					}
 				}
 			}
@@ -69,7 +69,7 @@ public:
 			for ( int i = 0; i < ball.size(); i++ ){
 				float term;
 				if( ball[i].alive ) {
-					float radius = sqrt( pow(ball[i].pos.x - x, 2) + pow( ball[i].pos.y - y, 2) );
+					float radius = sqrt( pow(ball[i].x - x, 2) + pow( ball[i].y - y, 2) );
 
 					if ( radius < ( diameter / 2.f )) {
 						term = (centerAccel / pow(radius, 2)) *  frameTime;
@@ -81,8 +81,8 @@ public:
 						}
 					}
 
-					ball[i].vel.x += (( x - ball[i].pos.x ) / radius) * term;
-					ball[i].vel.y += (( y - ball[i].pos.y ) / radius) * term;
+					ball[i].xVel += (( x - ball[i].x ) / radius) * term;
+					ball[i].yVel += (( y - ball[i].y ) / radius) * term;
 				}
 			}
 		}
