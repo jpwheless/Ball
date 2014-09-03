@@ -4,16 +4,16 @@
 #include <SFML/Graphics.hpp>
 #include "vector.hpp"
 
+#define TEXTURE_DIA 10.f // Texture is current 10px in dia
+
 namespace gp {
 
 class Ball {
 public:
 	float x, y;
 	float xVel, yVel;
-	float diameter;
-	float radius;
-	float springRate;
-	float reboundEfficiency;
+	float diameter, radius;
+	float springRate, reboundEfficiency;
 	sf::Sprite sprite;
 	bool alive;
 
@@ -26,7 +26,7 @@ public:
 		if( alive ) {
 			x += xVel * frameTime;
 			y += yVel * frameTime;
-			sprite.setPosition( x, y );
+			sprite.setPosition( x + radius, y + radius );
 		}
 	}
 
@@ -36,10 +36,16 @@ public:
 		sprite.setPosition( x, y );
 	}
 
-	void setTexture( sf::Texture &texture, int textureWidth ){
+	void setTexture( sf::Texture &texture, int ballDia, int r, int g, int b ){
+		diameter = ballDia;
+		radius = ballDia / 2.f;
+		
+		sprite.setOrigin(radius, radius);
+		texture.setSmooth(true);
 		sprite.setTexture(texture);
-		diameter = textureWidth;
-		radius = diameter / 2.f;
+		sprite.setScale(diameter/TEXTURE_DIA, diameter/TEXTURE_DIA);
+		sprite.setColor(sf::Color(r, g, b));
+
 	}
 };
 

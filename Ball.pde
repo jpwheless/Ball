@@ -6,11 +6,11 @@
 // Mostly for the ball objects.  All black hole variables are stored in that class
 
 static final int height = 800;
-static final int width = 1005;
+static final int width = 1010;
 
-static final int numBalls = 1000;
-static final int maxInitialSpeed = 0; // Pixels per second
-static final int ballSize = 10;
+static final int numBalls = 500;
+static final int maxInitialSpeed = 100; // Pixels per second
+static final int ballSize = 20;
 BallModule[] ball;
 BlackHole bh;
 
@@ -20,7 +20,7 @@ static final float mouseFilt = 0.05;
 static final int flashDia = 300; // Must be more than bh.dia+2
 
 boolean enableLinGrav = true;
-static final float yGravity = 500.0;
+static final float yGravity = 1000.0;
 static final float xGravity = 0.0;
 
 static final float wallSpringRate = 10000.0; // pixels/sec^2 per pixel
@@ -48,9 +48,9 @@ void setup() {
    bh = new BlackHole(width/2.0,  // Center X
                       height/2.0, // Center Y
                       100000.0,   // Surface Accel
-                      100,         // Diameter
+                      20,         // Diameter
                       1,          // 1 = no collision, 2 = destruction,   3 = collision
-                      2);         // 1 = stationary,   2 = mouse control, 3 = permanent and mouse
+                      3);         // 1 = stationary,   2 = mouse control, 3 = permanent and mouse
                          
    // Initialize all ball objects
    for (int i = 0; i < numBalls; i++) {

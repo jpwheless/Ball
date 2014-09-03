@@ -18,22 +18,20 @@ class Simulation {
 public:
 	int resX, resY;
 	float xGravity, yGravity;
-	float wallRebEff, wallSpringRate;
-	bool enableLinGrav;
 
 	int numberOfBalls;
-	std::vector<gp::Ball> balls;
+	std::vector<gp::Ball> ballV;
 
 	sf::RenderWindow* window;
 	//window.setFramerateLimit(60);
-	sf::Clock timer;
-	sf::Time elapsed;
-	float tickTime;
-	sf::Texture bgTexture;
+	sf::Clock clock;
+	sf::Time elapsedTime;
+	float tickTime, frameRateAvg;
+	//sf::Texture bgTexture;
 	sf::Sprite bg;
 	std::string windowTitle;
 	sf::Texture ballTexture;
-	int imageSize;
+	int ballDia;
 
 	bool running;
 
@@ -48,37 +46,35 @@ public:
 		//////////////
 		
 		// Resolution
-		resX = 1200;
+		resX = 1210; // n.5*ballDia for even particle stacking
 		resY = 720;
-		windowTitle = "Balls!";
+		windowTitle = "Balls! ";
 		// Gravity
-		enableLinGrav = true;
-		xGravity = 0;
-		yGravity = 500;
+		xGravity = 0.0;
+		yGravity = 500.0;
 		// Balls
 		numberOfBalls = 200;
-		// Walls
-		wallRebEff = 0.01;
-		wallSpringRate = 10000;
-		// Ball Image Size
-		imageSize = 10;
+		// Ball Size
+		ballDia = 20; // Scales texture if necessary
+		
 
 
 		////////////////////
 		// Initialization //
 		////////////////////
-		bgTexture.loadFromFile( "textures/bg.png" );
-		bg.setTexture(bgTexture);
+		//bgTexture.loadFromFile( "textures/bg.png" );
+		//bg.setTexture(bgTexture);
 		ballTexture.loadFromFile("textures/ball.png");
 		tickTime = 0;
+		frameRateAvg = 0;
 		// Create ball data structure
 		for ( int i = 0; i < numberOfBalls; i++ ) {
 			gp::Ball ball;
 			ball.setPosition(rand()%resX, rand()%resY);
-			ball.springRate = 5000;
-			ball.sprite.setOrigin(ball.radius, ball.radius);
-			ball.setTexture(ballTexture, imageSize);
-			balls.push_back(ball);
+			ball.setTexture(ballTexture, ballDia, rand()%255, rand()%255, rand()%255);
+			ball.springRate = 10000;
+			ball.reboundEfficiency = 0.01;
+			ballV.push_back(ball);
 		}
 	}
 
@@ -101,25 +97,25 @@ public:
 	}
 
 	void draw() {
-		window = new sf::RenderWindow( sf::VideoMode( resX, resY ), windowTitle);
+		window = new sf::RenderWindow( sf::VideoMode( resX, resY ), windowTitle + std::to_string(frameRateAvg));
 		window->setFramerateLimit(70);
-		while (window->isOpen())
-		{
+		while (window->isOpen()) {
 			sf::Event event;
-			while (window->pollEvent(event))
-			{
-				if (event.type == sf::Event::Closed){
+			while (window->pollEvent(event)) {
+				if (event.type == sf::Event::Closed) {
 					window->close();
 					running = false;
 				}
 			}
 
 			window->clear();
-			window->draw(bg);
-			for ( int i = 0; i < balls.size(); i++ ){
-				window->draw(balls[i].sprite);
+			//window->draw(bg);
+			for ( int i = 0; i < ballV.size(); i++ ) {
+				window->draw(ballV[i].sprite);
 			}
 			window->display();
+			
+			window->setTitle(windowTitle + std::to_string(frameRateAvg));
 		}
 	}
 
@@ -127,69 +123,67 @@ public:
 		Sleep(100);
 		while(running){
 			collisonUpdate();
-			applyGravity();
-			for ( int i = 0; i < balls.size(); i++ )
-				balls[i].update( tickTime );
-
-			elapsed = timer.restart();
-			tickTime = elapsed.asSeconds();
+			for ( int i = 0; i < ballV.size(); i++ ) {
+				ballV[i].update( tickTime );
+			}
+			
+			elapsedTime = clock.restart();
+			tickTime = elapsedTime.asSeconds();
+			frameRateAvg = 0.01f/tickTime + frameRateAvg*(1.f - 0.01f);
 		}
 	}
 
 	void collisonUpdate() {
-		for (int i = 0; i < balls.size() - 1; i++) {
-			if (balls[i].alive) {
-				float ballSpringRate = balls[i].springRate;
-				for (int j = i+1; j < balls.size(); j++) {
+		
+		for (int i = 0; i < ballV.size() - 1; i++) {
+			if (ballV[i].alive) {
+				
+				// Inter-particle collisions
+				for (int j = i+1; j < ballV.size(); j++) {
 				// Distance between the two points
-					if (balls[j].alive) {
-						float rad = sqrt(pow(balls[i].x - balls[j].x, 2) + pow(balls[i].y - balls[j].y, 2));
-						if (rad < balls[i].radius + balls[j].radius) { // Particles are colliding
-							float term = (ballSpringRate*(balls[i].radius)*(tickTime));
+					if (ballV[j].alive) {
+						float rad = sqrt(pow(ballV[i].x - ballV[j].x, 2) + pow(ballV[i].y - ballV[j].y, 2));
+						if (rad < ballV[i].radius + ballV[j].radius) { // Particles are colliding
+							float term = (ballV[i].springRate*(ballV[i].radius)*(tickTime));
 
-							balls[j].xVel += ((balls[j].x - balls[i].x)/rad)*term;
-							balls[i].xVel += ((balls[i].x - balls[j].x)/rad)*term;
-							balls[j].yVel += ((balls[j].y - balls[i].y)/rad)*term;
-							balls[i].yVel += ((balls[i].y - balls[j].y)/rad)*term;
+							ballV[j].xVel += ((ballV[j].x - ballV[i].x)/rad)*term;
+							ballV[i].xVel += ((ballV[i].x - ballV[j].x)/rad)*term;
+							ballV[j].yVel += ((ballV[j].y - ballV[i].y)/rad)*term;
+							ballV[i].yVel += ((ballV[i].y - ballV[j].y)/rad)*term;
 						}
 					}
 				}
+				
+				// Particle-boundary collisions
+				if (ballV[i].x > resX - ballV[i].radius) {
+					// Ball linear spring rate w/ wall rebound efficiency
+					ballV[i].xVel += ((resX - ballV[i].radius) - ballV[i].x)*ballV[i].springRate*
+					((ballV[i].xVel < 0) ? ballV[i].reboundEfficiency : 1.0)*tickTime;
+				}
+				else if (ballV[i].x < ballV[i].radius) {         
+					ballV[i].xVel += (ballV[i].radius - ballV[i].x)*ballV[i].springRate*
+					((ballV[i].xVel > 0) ? ballV[i].reboundEfficiency : 1.0)*tickTime;
+				}
+				else {
+					ballV[i].xVel += xGravity*tickTime;
+				}
+
+				if (ballV[i].y > resY - ballV[i].radius) {
+					// Ball linear spring rate w/ wall rebound efficiency
+					ballV[i].yVel += ((resY - ballV[i].radius) - ballV[i].y)*ballV[i].springRate*
+					((ballV[i].yVel < 0) ? ballV[i].reboundEfficiency : 1.0)*tickTime;
+				}
+				else if (ballV[i].y < ballV[i].radius) {
+					ballV[i].yVel += (ballV[i].radius - ballV[i].y)*ballV[i].springRate*
+					((ballV[i].yVel > 0) ? ballV[i].reboundEfficiency : 1.0)*tickTime;
+				}
+				else {
+					ballV[i].yVel += yGravity*tickTime;
+				}
 			}
 		}
 	}
 
-	void applyGravity() {
-		float border = imageSize/2;
-		for (int i = 0; i < balls.size(); i++) {
-			if (balls[i].alive) {
-				if (balls[i].x > resX - border) {
-					// Ball linear spring rate w/ wall rebound efficiency
-					balls[i].xVel += ((resX-border) - balls[i].x)*wallSpringRate*
-					((balls[i].xVel < 0) ? wallRebEff : 1.0)*tickTime;
-				}
-				else if (balls[i].x < border) {         
-					balls[i].xVel += (border - balls[i].x)*wallSpringRate*
-					((balls[i].xVel > 0) ? wallRebEff : 1.0)*tickTime;
-				}
-				else {
-					if (enableLinGrav) balls[i].xVel += xGravity*tickTime;
-				}
-
-				if (balls[i].y > resY - border) {
-					// Ball linear spring rate w/ wall rebound efficiency
-					balls[i].yVel += ((resY-border) - balls[i].y)*wallSpringRate*
-					((balls[i].yVel < 0) ? wallRebEff : 1.0)*tickTime;
-				}
-				else if (balls[i].y < border) {
-					balls[i].yVel += (border - balls[i].y)*wallSpringRate*
-					((balls[i].yVel > 0) ? wallRebEff : 1.0)*tickTime;
-				}
-				else {
-					if (enableLinGrav) balls[i].yVel += yGravity*tickTime;
-				}
-			}
-		}
-	}
 };
 
 }
