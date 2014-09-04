@@ -5,7 +5,7 @@
 
 // Mostly for the ball objects.  All black hole variables are stored in that class
 
-static final int numBalls = 1000;
+static final int numBalls = 700;
 static final int maxInitialSpeed = 1; // Pixels per second
 static final int ballDia = 10;
 static final float ballRad = ballDia/2.f;
@@ -26,6 +26,12 @@ static final float xGravity = 0.0;
 boolean enableCollision = true;
 static final float ballSpringRate = 50000.0; // pixels/sec^2 per pixel 
 static final float ballRebEff = 0.7;
+
+boolean enableSticky = true;
+
+static final float ballAttractRate = 5000.0; // pixels/sec^2 per pixel 
+static final float ballAttractRad = 5.f;
+
 
 static final boolean debugOn = false;
 
@@ -49,8 +55,8 @@ void setup() {
                      
    bh = new BlackHole(width/2.0,  // Center X
                       height/2.0, // Center Y
-                      100000.0,   // Surface Accel
-                      40,         // Diameter
+                      -400000.0,   // Surface Accel
+                      20,         // Diameter
                       1,          // 1 = no collision, 2 = destruction,   3 = collision
                       2);         // 1 = stationary,   2 = mouse control, 3 = permanent and mouse
                          
@@ -144,6 +150,17 @@ void collisionUpdate() {
                      ball[i].yVel += accel;
 							ball[j].yVel -= accel;
                   }
+						else if (enableSticky && rad < ballDia + ballAttractRad) {
+							
+							term = ballAttractRate*(rad - ballDia - ballAttractRad)/(frameRate);
+							
+							accel = ((ball[i].x - ball[j].x)/rad)*term;
+							ball[i].xVel += accel;
+							ball[j].xVel -= accel;
+							accel = ((ball[i].y - ball[j].y)/rad)*term;
+							ball[i].yVel += accel;
+							ball[j].yVel -= accel;
+						}
                }
             }
          }
