@@ -14,7 +14,7 @@ public:
 	float xVel, yVel;
 	float diameter, radius;
 	float springRate, reboundEfficiency;
-	sf::Sprite sprite;
+	sf::CircleShape ballShape;
 	bool alive;
 
 	Ball() {
@@ -26,16 +26,26 @@ public:
 		if( alive ) {
 			x += xVel * frameTime;
 			y += yVel * frameTime;
-			sprite.setPosition( x + radius, y + radius );
+			ballShape.setPosition( x - radius, y - radius );
 		}
 	}
 
 	void setPosition( float xIn, float yIn ){
 		x = xIn;
 		y = yIn;
-		sprite.setPosition( x, y );
+		ballShape.setPosition( x - radius, y - radius );
 	}
+	
+	void setSize( int ballDia, int r, int g, int b ){
+		diameter = ballDia;
+		radius = ballDia / 2.f;
+		
+		ballShape.setRadius(radius);
+		ballShape.setFillColor(sf::Color(r, g, b));
 
+	}
+	
+	/*
 	void setTexture( sf::Texture &texture, int ballDia, int r, int g, int b ){
 		diameter = ballDia;
 		radius = ballDia / 2.f;
@@ -45,8 +55,8 @@ public:
 		sprite.setTexture(texture);
 		sprite.setScale(diameter/TEXTURE_DIA, diameter/TEXTURE_DIA);
 		sprite.setColor(sf::Color(r, g, b));
-
 	}
+	*/
 };
 
 }

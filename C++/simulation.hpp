@@ -28,9 +28,9 @@ public:
 	sf::Time elapsedTime;
 	float tickTime, frameRateAvg;
 	//sf::Texture bgTexture;
-	sf::Sprite bg;
+	//sf::Sprite bg;
 	std::string windowTitle;
-	sf::Texture ballTexture;
+	//sf::Texture ballTexture;
 	int ballDia;
 
 	bool running;
@@ -46,14 +46,14 @@ public:
 		//////////////
 		
 		// Resolution
-		resX = 1210; // n.5*ballDia for even particle stacking
-		resY = 720;
+		resX = 1020; // n.5*ballDia for even particle stacking
+		resY = 800;
 		windowTitle = "Balls! ";
 		// Gravity
 		xGravity = 0.0;
-		yGravity = 500.0;
+		yGravity = 1000.0;
 		// Balls
-		numberOfBalls = 200;
+		numberOfBalls = 300;
 		// Ball Size
 		ballDia = 20; // Scales texture if necessary
 		
@@ -64,16 +64,36 @@ public:
 		////////////////////
 		//bgTexture.loadFromFile( "textures/bg.png" );
 		//bg.setTexture(bgTexture);
-		ballTexture.loadFromFile("textures/ball.png");
+		//ballTexture.loadFromFile("textures/ball.png");
 		tickTime = 0;
 		frameRateAvg = 0;
 		// Create ball data structure
 		for ( int i = 0; i < numberOfBalls; i++ ) {
 			gp::Ball ball;
-			ball.setPosition(rand()%resX, rand()%resY);
-			ball.setTexture(ballTexture, ballDia, rand()%255, rand()%255, rand()%255);
-			ball.springRate = 10000;
-			ball.reboundEfficiency = 0.01;
+			ball.setSize(ballDia, rand()%255, rand()%255, rand()%255);
+			ball.springRate = 50000;
+			ball.reboundEfficiency = 0.7;
+
+			
+			float xPos, yPos;
+			int tryCount = 1;
+			boolean collision = true;
+
+			// Make sure ball doesn't collide with another upon start
+			while (collision && tryCount <= 50) {
+				xPos = ball.radius + (resX - 2.f*ball.radius)*rand()/(RAND_MAX + 1.0);
+				yPos = ball.radius + (resY - 2.f*ball.radius)*rand()/(RAND_MAX + 1.0);
+				collision = false;
+				for (int j = 0; j < i; j++) {
+					if (sqrt(pow(xPos - ballV[j].x, 2.0) + pow(yPos - ballV[j].y, 2.0)) < ballDia)
+						collision = true;
+				}
+				tryCount++;
+			}
+			
+			ball.setPosition(xPos, yPos);
+			//ball.setTexture(ballTexture, ballDia, rand()%255, rand()%255, rand()%255);
+			
 			ballV.push_back(ball);
 		}
 	}
@@ -97,7 +117,9 @@ public:
 	}
 
 	void draw() {
-		window = new sf::RenderWindow( sf::VideoMode( resX, resY ), windowTitle + std::to_string(frameRateAvg));
+		window = new sf::RenderWindow( sf::VideoMode( resX, resY ), 
+			windowTitle + std::to_string((int)frameRateAvg), sf::Style::Default,
+			sf::ContextSettings( 24, 8, 2, 3, 0));
 		window->setFramerateLimit(70);
 		while (window->isOpen()) {
 			sf::Event event;
@@ -111,11 +133,11 @@ public:
 			window->clear();
 			//window->draw(bg);
 			for ( int i = 0; i < ballV.size(); i++ ) {
-				window->draw(ballV[i].sprite);
+				window->draw(ballV[i].ballShape);
 			}
 			window->display();
 			
-			window->setTitle(windowTitle + std::to_string(frameRateAvg));
+			window->setTitle(windowTitle + std::to_string((int)frameRateAvg));
 		}
 	}
 
@@ -128,8 +150,9 @@ public:
 			}
 			
 			elapsedTime = clock.restart();
-			tickTime = elapsedTime.asSeconds();
-			frameRateAvg = 0.01f/tickTime + frameRateAvg*(1.f - 0.01f);
+			tickTime = 0.01f*elapsedTime.asSeconds() + tickTime*(1.f - 0.01f);
+			//frameRateAvg = 0.01f/tickTime + frameRateAvg*(1.f - 0.01f);
+			frameRateAvg = 1.f/tickTime;
 		}
 	}
 
@@ -140,16 +163,23 @@ public:
 				
 				// Inter-particle collisions
 				for (int j = i+1; j < ballV.size(); j++) {
-				// Distance between the two points
 					if (ballV[j].alive) {
-						float rad = sqrt(pow(ballV[i].x - ballV[j].x, 2) + pow(ballV[i].y - ballV[j].y, 2));
-						if (rad < ballV[i].radius + ballV[j].radius) { // Particles are colliding
-							float term = (ballV[i].springRate*(ballV[i].radius)*(tickTime));
-
-							ballV[j].xVel += ((ballV[j].x - ballV[i].x)/rad)*term;
-							ballV[i].xVel += ((ballV[i].x - ballV[j].x)/rad)*term;
-							ballV[j].yVel += ((ballV[j].y - ballV[i].y)/rad)*term;
-							ballV[i].yVel += ((ballV[i].y - ballV[j].y)/rad)*term;
+						// Distance between the two points
+						float dist = sqrt(pow(ballV[i].x - ballV[j].x, 2.0) + pow(ballV[i].y - ballV[j].y, 2.0));
+						if (dist < ballV[i].radius + ballV[j].radius) { // Particles are colliding
+							float term = ballV[i].springRate*(ballV[i].radius + ballV[j].radius - dist)*tickTime;
+							float accel;
+							
+							accel = ((ballV[i].x - ballV[j].x)/dist)*term*
+								(((ballV[i].x < ballV[j].x && ballV[i].xVel < ballV[j].xVel) ||
+								(ballV[i].x > ballV[j].x && ballV[i].xVel > ballV[j].xVel)) ? ballV[i].reboundEfficiency : 1.0);
+							ballV[i].xVel += accel;
+							ballV[j].xVel -= accel;
+							accel = ((ballV[i].y - ballV[j].y)/dist)*term*
+								(((ballV[i].y < ballV[j].y && ballV[i].yVel < ballV[j].yVel) ||
+								(ballV[i].y > ballV[j].y && ballV[i].yVel > ballV[j].yVel)) ? ballV[i].reboundEfficiency : 1.0);
+							ballV[i].yVel += accel;
+							ballV[j].yVel -= accel;
 						}
 					}
 				}
@@ -169,7 +199,6 @@ public:
 				}
 
 				if (ballV[i].y > resY - ballV[i].radius) {
-					// Ball linear spring rate w/ wall rebound efficiency
 					ballV[i].yVel += ((resY - ballV[i].radius) - ballV[i].y)*ballV[i].springRate*
 					((ballV[i].yVel < 0) ? ballV[i].reboundEfficiency : 1.0)*tickTime;
 				}

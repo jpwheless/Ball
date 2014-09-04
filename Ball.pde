@@ -5,16 +5,16 @@
 
 // Mostly for the ball objects.  All black hole variables are stored in that class
 
-static final int height = 800;
-static final int width = 1010;
+static final int numBalls = 1000;
+static final int maxInitialSpeed = 1; // Pixels per second
+static final int ballDia = 10;
+static final float ballRad = ballDia/2.f;
 
-static final int numBalls = 500;
-static final int maxInitialSpeed = 100; // Pixels per second
-static final int ballSize = 20;
+static final int height = 800;
+static final int width = 1500;
+
 BallModule[] ball;
 BlackHole bh;
-
-static final int border = (int)(ballSize/2.0);
 
 static final float mouseFilt = 0.05;
 static final int flashDia = 300; // Must be more than bh.dia+2
@@ -23,11 +23,9 @@ boolean enableLinGrav = true;
 static final float yGravity = 1000.0;
 static final float xGravity = 0.0;
 
-static final float wallSpringRate = 10000.0; // pixels/sec^2 per pixel
-static final float wallRebEff = 0.01; // Wall rebound efficiency
-
 boolean enableCollision = true;
-static final float ballSpringRate = 10000.0; // pixels/sec^2 per pixel 
+static final float ballSpringRate = 50000.0; // pixels/sec^2 per pixel 
+static final float ballRebEff = 0.7;
 
 static final boolean debugOn = false;
 
@@ -36,7 +34,11 @@ static final boolean debugOn = false;
 
 int lastDraw; // Draw timer
 int lastDebug; // Debug readout timer
-float term; // Temporary radial gravity variable
+
+int ballCount;
+
+float accel, term; // Temporary radial gravity variable
+
 float rad; // Temporary radial gravity variable
 
 void setup() {
@@ -48,13 +50,29 @@ void setup() {
    bh = new BlackHole(width/2.0,  // Center X
                       height/2.0, // Center Y
                       100000.0,   // Surface Accel
-                      20,         // Diameter
+                      40,         // Diameter
                       1,          // 1 = no collision, 2 = destruction,   3 = collision
-                      3);         // 1 = stationary,   2 = mouse control, 3 = permanent and mouse
+                      2);         // 1 = stationary,   2 = mouse control, 3 = permanent and mouse
                          
    // Initialize all ball objects
    for (int i = 0; i < numBalls; i++) {
-      ball[i] = new BallModule(random(width), random(height), random(maxInitialSpeed), random(0,TWO_PI));
+      float xPos = 0, yPos = 0;
+		int tryCount = 1;
+		boolean collision = true;
+		
+		// Make sure ball doesn't collide with another upon start
+		while (collision && tryCount <= 50) {
+			xPos = random(ballRad, width-ballRad);
+			yPos = random(ballRad, height-ballRad);
+			collision = false;
+			for (int j = 0; j < i; j++) {
+				rad = sqrt(sq(xPos - ball[j].x) + sq(yPos - ball[j].y));
+				if (rad < ballDia) collision = true;
+			}
+			tryCount++;
+		}
+		
+		ball[i] = new BallModule(xPos, yPos, random(maxInitialSpeed), random(0,TWO_PI));
    }
    
    lastDraw = millis();
@@ -111,13 +129,20 @@ void collisionUpdate() {
                if (ball[j].enabled) {
 
                   rad = sqrt(sq(ball[i].x - ball[j].x) + sq(ball[i].y - ball[j].y));
-                  if (rad < ballSize) { // Particles are colliding
-                     term = (ballSpringRate*(ballSize-rad)/(frameRate));
+                  if (rad < ballDia) { // Particles are colliding
+                     term = ballSpringRate*(ballDia-rad)/(frameRate);
                      
-                     ball[j].xVel += ((ball[j].x - ball[i].x)/rad)*term;
-                     ball[i].xVel += ((ball[i].x - ball[j].x)/rad)*term;
-                     ball[j].yVel += ((ball[j].y - ball[i].y)/rad)*term;
-                     ball[i].yVel += ((ball[i].y - ball[j].y)/rad)*term;
+							
+                     accel = ((ball[i].x - ball[j].x)/rad)*term*
+								(((ball[i].x < ball[j].x && ball[i].xVel < ball[j].xVel) ||
+								(ball[i].x > ball[j].x && ball[i].xVel > ball[j].xVel)) ? ballRebEff : 1.0);
+                     ball[i].xVel += accel;
+							ball[j].xVel -= accel;
+							accel = ((ball[i].y - ball[j].y)/rad)*term*
+								(((ball[i].y < ball[j].y && ball[i].yVel < ball[j].yVel) ||
+								(ball[i].y > ball[j].y && ball[i].yVel > ball[j].yVel)) ? ballRebEff : 1.0);
+                     ball[i].yVel += accel;
+							ball[j].yVel -= accel;
                   }
                }
             }
@@ -127,35 +152,47 @@ void collisionUpdate() {
    
    // bounce positions off screen limits
    // And do linear gravity
+	ballCount = 0;
    for (int i = 0; i < numBalls; i++) {
-      if (ball[i].enabled) {
-         if (ball[i].x > width - border) {
+      
+		
+		
+		if (ball[i].enabled) {
+         if (ball[i].x > width - ballRad) {
             // Ball linear spring rate w/ wall rebound efficiency
-            ball[i].xVel += ((width-border) - ball[i].x)*wallSpringRate*
-               ((ball[i].xVel < 0) ? wallRebEff : 1.0)/frameRate;
+            ball[i].xVel += ((width-ballRad) - ball[i].x)*ballSpringRate*
+               ((ball[i].xVel < 0) ? ballRebEff : 1.0)/frameRate;
          }
-         else if (ball[i].x < border) {         
-            ball[i].xVel += (border - ball[i].x)*wallSpringRate*
-               ((ball[i].xVel > 0) ? wallRebEff : 1.0)/frameRate;
+         else if (ball[i].x < ballRad) {         
+            ball[i].xVel += (ballRad - ball[i].x)*ballSpringRate*
+               ((ball[i].xVel > 0) ? ballRebEff : 1.0)/frameRate;
          }
          else {
             if (enableLinGrav) ball[i].xVel += xGravity/frameRate;
          }
          
-         if (ball[i].y > height - border) {
-            // Ball linear spring rate w/ wall rebound efficiency
-            ball[i].yVel += ((height-border) - ball[i].y)*wallSpringRate*
-               ((ball[i].yVel < 0) ? wallRebEff : 1.0)/frameRate;
+         if (ball[i].y > height - ballRad) {
+            ball[i].yVel += ((height-ballRad) - ball[i].y)*ballSpringRate*
+               ((ball[i].yVel < 0) ? ballRebEff : 1.0)/frameRate;
          }
-         else if (ball[i].y < border) {
-            ball[i].yVel += (border - ball[i].y)*wallSpringRate*
-               ((ball[i].yVel > 0) ? wallRebEff : 1.0)/frameRate;
+         else if (ball[i].y < ballRad) {
+            ball[i].yVel += (ballRad - ball[i].y)*ballSpringRate*
+               ((ball[i].yVel > 0) ? ballRebEff : 1.0)/frameRate;
          }
          else {
             if (enableLinGrav) ball[i].yVel += yGravity/frameRate;
          }
+			
+			
+			if (ball[i].x > 0 && ball[i].x < width && ball[i].y > 0 && ball[i].y < height) {
+				// Count active balls
+				ballCount++;
+			}
+			
       }
    }
+	
+	
 }
 
 // Handles 60Hz refresh rate stuff
@@ -174,7 +211,8 @@ void updateScreen() {
    
    // Frame rate readout
    fill(255, 255, 255);
-   text(Float.toString(frameRate), 5, 15);
+   text(Float.toString(frameRate), 5, 12);
+	text(Integer.toString(ballCount), 5, 25);
 
 }
 
@@ -221,7 +259,7 @@ class BallModule {
    void draw() {
       if (enabled) {
          fill(rgb[0],rgb[1],rgb[2]);
-         ellipse(x, y, ballSize, ballSize);
+         ellipse(x, y, ballDia, ballDia);
       }
    }
 }
@@ -276,8 +314,8 @@ class BlackHole {
             if (ball[i].enabled) {
 
                rad = sqrt(sq(ball[i].x - x) + sq(ball[i].y - y));
-               if (rad < (ballSize+dia)/2.0) { // Particles are colliding
-                  term = ballSpringRate*((ballSize+dia)/2.0 - rad)/(frameRate);
+               if (rad < (ballDia+dia)/2.0) { // Particles are colliding
+                  term = ballSpringRate*((ballDia+dia)/2.0 - rad)/(frameRate);
                   
                   ball[i].xVel += ((ball[i].x - x)/rad)*term;
                   ball[i].yVel += ((ball[i].y - y)/rad)*term;
