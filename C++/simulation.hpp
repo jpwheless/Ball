@@ -46,16 +46,16 @@ public:
 		//////////////
 		
 		// Resolution
-		resX = 1020; // n.5*ballDia for even particle stacking
+		resX = 1500; // n.5*ballDia for even particle stacking
 		resY = 800;
 		windowTitle = "Balls! ";
 		// Gravity
 		xGravity = 0.0;
 		yGravity = 1000.0;
 		// Balls
-		numberOfBalls = 300;
+		numberOfBalls = 1000;
 		// Ball Size
-		ballDia = 20; // Scales texture if necessary
+		ballDia = 10; // Scales texture if necessary
 		
 
 
