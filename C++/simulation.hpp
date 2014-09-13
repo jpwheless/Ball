@@ -2,214 +2,350 @@
 #define SIMULATION_HPP
 
 #include <SFML/Graphics.hpp>
+#include <SFGUI/SFGUI.hpp>
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <sstream>
 #include <vector>
 #include <stdlib.h>
 #include <iostream>
 #include <thread>
 #include <windows.h>
 
-#include "ball.hpp"
-#include "vector.hpp"
-#include "blackHole.hpp"
+#include "barrier.hpp"
+#include "particles.hpp"
 
-namespace gp {
+namespace z {
 
 class Simulation {
-public:
-	int resX, resY;
-	float xGravity, yGravity;
+private:
+	sf::RenderWindow* mainWindow;
+	sf::Font calibri;
+	sf::Text fps;
+	
+	// SFGUI
+	sfg::SFGUI sfguiW;
+	sfg::Window::Ptr guiWindow;
+	sfg::CheckButton::Ptr cbStickyness;
+	sfg::CheckButton::Ptr cbCollision;
+	sfg::CheckButton::Ptr cbBoundaries;
 
-	int numberOfBalls;
-	std::vector<gp::Ball> ballV;
-
-	sf::RenderWindow* window;
-	//window.setFramerateLimit(60);
 	sf::Clock clock;
 	sf::Time elapsedTime;
 	float tickTime, frameRateAvg;
-	//sf::Texture bgTexture;
-	//sf::Sprite bg;
-	std::string windowTitle;
-	//sf::Texture ballTexture;
-	int ballDia;
-
+	
 	bool running;
-
+	bool debugRead;
+	
 	// Threads
 	std::thread* drawThread;
-	std::thread* computePhysicsThread;
+	std::thread* calcPhysicsThread1;
+	std::thread* calcPhysicsThread2;
+	
+	z::SpinningBarrier rendezvous1 = z::SpinningBarrier(2);
+	z::SpinningBarrier rendezvous2 = z::SpinningBarrier(2);
+	
+	std::atomic<int>* loadBalance1 = new std::atomic<int>;
+	std::atomic<int>* loadBalance2 = new std::atomic<int>;
+	std::atomic<bool>* finishFlag1 = new std::atomic<bool>;
+	std::atomic<bool>* finishFlag2 = new std::atomic<bool>;
+	
+	// SFGUI button functions
+	void buttonCollision() {
+		particleCollisions = cbCollision->IsActive();
+	}
+	void buttonStickyness() {
+		particleStickyness = cbStickyness->IsActive();
+	}
+	void buttonBoundaries() {
+		particleBoundary = cbBoundaries->IsActive();
+	}
+	
+	void initSFML() {
+		mainWindow = new sf::RenderWindow( sf::VideoMode( resX, resY ), 
+			"Particles!", sf::Style::Default,
+			sf::ContextSettings( 24, 8, 8, 3, 0)); // Set openGL parameters
+		mainWindow->setFramerateLimit(60);
+		
+		// fps readout
+		if(calibri.loadFromFile("%windir%\fonts\calibri.ttf")) {
+			debugRead = true;
+			fps.setFont(calibri);
+			fps.setCharacterSize(15);
+			fps.setColor(sf::Color::White);
+		}
+	}
 
+	void initGUI() {
+		guiWindow = sfg::Window::Create();
+		guiWindow->SetTitle( "Title" );
+		auto box = sfg::Box::Create( sfg::Box::Orientation::VERTICAL, 5.f );
+		guiWindow->Add(box);
+		
+		// Button functions
+		cbCollision = sfg::CheckButton::Create( "Collision" );
+		cbCollision->GetSignal( sfg::ToggleButton::OnToggle ).Connect( std::bind( &z::Simulation::buttonCollision, this ) );
+		cbCollision->SetActive(particleCollisions);
+		
+		cbStickyness = sfg::CheckButton::Create( "Stickyness" );
+		cbStickyness->GetSignal( sfg::ToggleButton::OnToggle ).Connect( std::bind( &z::Simulation::buttonStickyness, this ) );
+		cbStickyness->SetActive(particleStickyness);
+		
+		cbBoundaries = sfg::CheckButton::Create( "Boundaries" );
+		cbBoundaries->GetSignal( sfg::ToggleButton::OnToggle ).Connect( std::bind( &z::Simulation::buttonBoundaries, this ) );
+		cbBoundaries->SetActive(particleBoundary);
+
+		box->Pack(cbCollision);
+		box->Pack(cbStickyness);
+		box->Pack(cbBoundaries);
+	}
+		
+public:
+
+	int resX, resY;
+	float linGravity;
+	bool particleBoundary;
+	
+	z::Particles particles;
+
+	////////////////////
+	// Initialization //
+	////////////////////
 	Simulation() {
 
-		//////////////
-		// Settings //
-		//////////////
-		
-		// Resolution
-		resX = 1500; // n.5*ballDia for even particle stacking
-		resY = 800;
-		windowTitle = "Balls! ";
-		// Gravity
-		xGravity = 0.0;
-		yGravity = 1000.0;
-		// Balls
-		numberOfBalls = 1000;
-		// Ball Size
-		ballDia = 10; // Scales texture if necessary
-		
-
-
-		////////////////////
-		// Initialization //
-		////////////////////
-		//bgTexture.loadFromFile( "textures/bg.png" );
-		//bg.setTexture(bgTexture);
-		//ballTexture.loadFromFile("textures/ball.png");
-		tickTime = 0;
-		frameRateAvg = 0;
-		// Create ball data structure
-		for ( int i = 0; i < numberOfBalls; i++ ) {
-			gp::Ball ball;
-			ball.setSize(ballDia, rand()%255, rand()%255, rand()%255);
-			ball.springRate = 50000;
-			ball.reboundEfficiency = 0.7;
-
-			
-			float xPos, yPos;
-			int tryCount = 1;
-			boolean collision = true;
-
-			// Make sure ball doesn't collide with another upon start
-			while (collision && tryCount <= 50) {
-				xPos = ball.radius + (resX - 2.f*ball.radius)*rand()/(RAND_MAX + 1.0);
-				yPos = ball.radius + (resY - 2.f*ball.radius)*rand()/(RAND_MAX + 1.0);
-				collision = false;
-				for (int j = 0; j < i; j++) {
-					if (sqrt(pow(xPos - ballV[j].x, 2.0) + pow(yPos - ballV[j].y, 2.0)) < ballDia)
-						collision = true;
-				}
-				tryCount++;
-			}
-			
-			ball.setPosition(xPos, yPos);
-			//ball.setTexture(ballTexture, ballDia, rand()%255, rand()%255, rand()%255);
-			
-			ballV.push_back(ball);
-		}
+		loadParams();
+						
 	}
 
 	~Simulation() {
 		// Clean up
-		delete window;
+		delete mainWindow;
 		delete drawThread;
-		delete computePhysicsThread;
+		delete calcPhysicsThread1;
+		delete calcPhysicsThread2;
 	}
-
-	///////////////////
-	// Start Threads //
-	///////////////////
-	void launch() {
-		running = true;
-		drawThread = new std::thread(&Simulation::draw, this);
-		computePhysicsThread = new std::thread(&Simulation::computePhysics, this);
-		drawThread->join();
-		computePhysicsThread->join();
-	}
-
-	void draw() {
-		window = new sf::RenderWindow( sf::VideoMode( resX, resY ), 
-			windowTitle + std::to_string((int)frameRateAvg), sf::Style::Default,
-			sf::ContextSettings( 24, 8, 2, 3, 0));
-		window->setFramerateLimit(70);
-		while (window->isOpen()) {
-			sf::Event event;
-			while (window->pollEvent(event)) {
-				if (event.type == sf::Event::Closed) {
-					window->close();
-					running = false;
-				}
-			}
-
-			window->clear();
-			//window->draw(bg);
-			for ( int i = 0; i < ballV.size(); i++ ) {
-				window->draw(ballV[i].ballShape);
-			}
-			window->display();
-			
-			window->setTitle(windowTitle + std::to_string((int)frameRateAvg));
-		}
-	}
-
-	void computePhysics() {
-		Sleep(100);
-		while(running){
-			collisonUpdate();
-			for ( int i = 0; i < ballV.size(); i++ ) {
-				ballV[i].update( tickTime );
-			}
-			
-			elapsedTime = clock.restart();
-			tickTime = 0.01f*elapsedTime.asSeconds() + tickTime*(1.f - 0.01f);
-			//frameRateAvg = 0.01f/tickTime + frameRateAvg*(1.f - 0.01f);
-			frameRateAvg = 1.f/tickTime;
-		}
-	}
-
-	void collisonUpdate() {
+	
+	void loadParams() {
+		// Default simulation parameters
+		resX = 1500;
+		resY = 900;
+		linGravity = 1000.0;
 		
-		for (int i = 0; i < ballV.size() - 1; i++) {
-			if (ballV[i].alive) {
+		int initialNumBalls = 500;
+		float initialBallDia = 10.0;
+		float initBallSprRate = 50000.f;
+		float initBallebEff = 0.7;
+		float initBallAttrRate = 25000.f * pow(initialBallDia/2.f, 2.f); // Surface rate to center rate
+		float initBallAttrRad = 5.f;
+		
+		bool particleCollisions = true;
+		bool particleStickyness = true;
+		particleBoundary = true;
+		
+		// Open file and read values
+		ifstream parameterFile("parameters.ini");
+		if (parameterFile.is_open()) { // Read parameter file
+			
+			string line;
+			
+			// Read all lines of file, sorting values into variables
+			while(getline(parameterFile, line)) {
+				istringstream lineSS(line);
 				
-				// Inter-particle collisions
-				for (int j = i+1; j < ballV.size(); j++) {
-					if (ballV[j].alive) {
-						// Distance between the two points
-						float dist = sqrt(pow(ballV[i].x - ballV[j].x, 2.0) + pow(ballV[i].y - ballV[j].y, 2.0));
-						if (dist < ballV[i].radius + ballV[j].radius) { // Particles are colliding
-							float term = ballV[i].springRate*(ballV[i].radius + ballV[j].radius - dist)*tickTime;
-							float accel;
-							
-							accel = ((ballV[i].x - ballV[j].x)/dist)*term*
-								(((ballV[i].x < ballV[j].x && ballV[i].xVel < ballV[j].xVel) ||
-								(ballV[i].x > ballV[j].x && ballV[i].xVel > ballV[j].xVel)) ? ballV[i].reboundEfficiency : 1.0);
-							ballV[i].xVel += accel;
-							ballV[j].xVel -= accel;
-							accel = ((ballV[i].y - ballV[j].y)/dist)*term*
-								(((ballV[i].y < ballV[j].y && ballV[i].yVel < ballV[j].yVel) ||
-								(ballV[i].y > ballV[j].y && ballV[i].yVel > ballV[j].yVel)) ? ballV[i].reboundEfficiency : 1.0);
-							ballV[i].yVel += accel;
-							ballV[j].yVel -= accel;
+				string paramName;
+				if (getline(lineSS, paramName, '=')) {
+					if (paramName == "WINDOW_WIDTH") {
+						string paramNum;
+						if (getline(lineSS, paramNum, ' ')) {
+							int temp = stoi(paramNum);
+							if (temp >= 100) resX = temp;
+						}
+					}
+					else if (paramName == "WINDOW_HEIGHT") {
+						string paramNum;
+						if (getline(lineSS, paramNum, ' ')) {
+							int temp = stoi(paramNum);
+							if (temp >= 100) resY = temp;
+						}
+					}
+					else if (paramName == "LINEAR_GRAVITY") {
+						string paramNum;
+						if (getline(lineSS, paramNum, ' ')) {
+							linGravity = stof(paramNum);
+						}
+					}
+					else if (paramName == "INITIAL_PARTICLES") {
+						string paramNum;
+						if (getline(lineSS, paramNum, ' ')) {
+							int temp = stoi(paramNum);
+							if (temp >= 0) initialNumBalls = temp;
+						}
+					}
+					else if (paramName == "INITIAL_PARTICLE_DIAMETER") {
+						string paramNum;
+						if (getline(lineSS, paramNum, ' ')) {
+							float temp = stof(paramNum);
+							if (temp >= 1.f) initialBallDia = temp;
+						}
+					}
+					else if (paramName == "INITIAL_PARTICLE_ATTRACT_RATE") {
+						string paramNum;
+						if (getline(lineSS, paramNum, ' ')) {
+							initBallAttrRate = stof(paramNum)*pow(initialBallDia/2.f, 2.f);;
+						}
+					}
+					else if (paramName == "INITIAL_PARTICLE_ATTRACT_RADIUS") {
+						string paramNum;
+						if (getline(lineSS, paramNum, ' ')) {
+							float temp = stof(paramNum);
+							if (temp >= 0) initBallAttrRad = temp;
+						}
+					}
+					else if (paramName == "PARTICLE_BOUNDARY") {
+						string paramBool;
+						if (getline(lineSS, paramBool, ' ')) {
+							if (paramBool == "true") particleBoundary = true;
+							else if (paramBool == "false") particleBoundary = false;
+						}
+					}				else if (paramName == "PARTICLE_COLLISIONS") {
+						string paramBool;
+						if (getline(lineSS, paramBool, ' ')) {
+							if (paramBool == "true") particleCollisions = true;
+							else if (paramBool == "false") particleCollisions = false;
+						}
+					}
+					else if (paramName == "PARTICLE_STICKYNESS") {
+						string paramBool;
+						if (getline(lineSS, paramBool, ' ')) {
+							if (paramBool == "true") particleStickyness = true;
+							else if (paramBool == "false") particleStickyness = false;
 						}
 					}
 				}
-				
-				// Particle-boundary collisions
-				if (ballV[i].x > resX - ballV[i].radius) {
-					// Ball linear spring rate w/ wall rebound efficiency
-					ballV[i].xVel += ((resX - ballV[i].radius) - ballV[i].x)*ballV[i].springRate*
-					((ballV[i].xVel < 0) ? ballV[i].reboundEfficiency : 1.0)*tickTime;
-				}
-				else if (ballV[i].x < ballV[i].radius) {         
-					ballV[i].xVel += (ballV[i].radius - ballV[i].x)*ballV[i].springRate*
-					((ballV[i].xVel > 0) ? ballV[i].reboundEfficiency : 1.0)*tickTime;
-				}
-				else {
-					ballV[i].xVel += xGravity*tickTime;
-				}
+			}
+		}
+		parameterFile.close();
+		
+		// Assume reformatting/creation is necessary
+		ofstream createParameter("parameters.ini");
+		if (createParameter.is_open()) {
+			createParameter << "WINDOW_WIDTH=" << resX << "\n";
+			createParameter << "WINDOW_HEIGHT=" << resY << "\n";
+			createParameter << "LINEAR_GRAVITY=" << linGravity << "\n";
+			createParameter << "INITIAL_PARTICLES=" << initialNumBalls << "\n";
+			createParameter << "INITIAL_PARTICLE_DIAMETER=" << initialBallDia << "\n";
+			createParameter << "INITIAL_PARTICLE_ATTRACT_RATE=" << initBallAttrRate/pow(initialBallDia/2.f, 2.f) << "\n";
+			createParameter << "INITIAL_PARTICLE_ATTRACT_RADIUS=" << initBallAttrRad << "\n";
+			createParameter << "PARTICLE_BOUNDARY=" << ((particleBoundary) ? "true" : "false") << "\n";
+			createParameter << "PARTICLE_COLLISIONS=" << ((particleCollisions) ? "true" : "false") << "\n";
+			createParameter << "PARTICLE_STICKYNESS=" << ((particleStickyness) ? "true" : "false") << "\n";
+		}
+		createParameter.close();
+		
+		particles.createInitBalls(initialNumBalls, initialBallDia, initBallSprRate,
+															initBallebEff, initBallAttrRate, initBallAttrRad);
+		particles.particleCollisions = particleCollisions;
+		particles.particleStickyness = particleStickyness;
+	}
+		
+	void launch() {
+		running = true;
+		drawThread = new std::thread(&Simulation::draw, this);
+		calcPhysicsThread1 = new std::thread(&Simulation::calcPhysics1, this);
+		calcPhysicsThread2 = new std::thread(&Simulation::calcPhysics2, this);
+		
+		*loadBalance1 = particles.ballV.size() / 3.f;
+		*loadBalance2 = particles.ballV.size() / 2.f;
+		
+		tickTime = 0.002; // Jump start to avoid physics glitches
+		frameRateAvg = 500;
+						
+		drawThread->join();
+		calcPhysicsThread1->join();
+		calcPhysicsThread2->join();
+	}
+	
+	/////////////
+	// Threads //
+	/////////////
+	void draw() {				
+		initSFML();		
+		initGUI();
 
-				if (ballV[i].y > resY - ballV[i].radius) {
-					ballV[i].yVel += ((resY - ballV[i].radius) - ballV[i].y)*ballV[i].springRate*
-					((ballV[i].yVel < 0) ? ballV[i].reboundEfficiency : 1.0)*tickTime;
-				}
-				else if (ballV[i].y < ballV[i].radius) {
-					ballV[i].yVel += (ballV[i].radius - ballV[i].y)*ballV[i].springRate*
-					((ballV[i].yVel > 0) ? ballV[i].reboundEfficiency : 1.0)*tickTime;
-				}
-				else {
-					ballV[i].yVel += yGravity*tickTime;
+		while (mainWindow->isOpen()) {
+			sf::Event event;
+			while (mainWindow->pollEvent(event)) {
+				guiWindow->HandleEvent(event);
+				if (event.type == sf::Event::Closed) {
+					mainWindow->close();
+					running = false;
 				}
 			}
+			
+			guiWindow->Update(1.f);
+			mainWindow->clear();
+			
+			particles.draw(mainWindow);
+			
+			// Draw text/gui
+			if (debugRead) {
+				fps.setString(std::to_string((int)frameRateAvg) + "\n" + 
+											std::to_string(*loadBalance1) + "," + std::to_string(*loadBalance2)
+											+ "\n" + std::to_string(particles.ballV.size()));
+				mainWindow->draw(fps);
+			}
+			sfguiW.Display(*mainWindow);
+			
+			// Display drawn objects
+			mainWindow->display();
+		}
+	}
+		
+	// Handle first portion of particles
+	void calcPhysics1() {
+
+		while(running){
+		
+			*finishFlag1 = false;
+			particles.collisonUpdate(0, *loadBalance1);
+			*finishFlag1 = true;
+			
+			rendezvous1.wait();
+			
+			*finishFlag2 = false;
+			particles.addPhysics(0, *loadBalance2);
+			*finishFlag2 = true;
+
+			elapsedTime = clock.restart();
+			tickTime = 0.01f*elapsedTime.asSeconds() + tickTime*(1.f - 0.01f);
+			
+			frameRateAvg = 1.f/tickTime;
+			
+			rendezvous2.wait();
+		}
+	}
+	
+	// Handle second portion of particles
+	void calcPhysics2() {
+		while(running){
+			particles.collisonUpdate(*loadBalance1, ballV.size());
+			
+			// If thread #1 has finished first, then increase its load
+			if (*finishFlag1 == true) *loadBalance1 = *loadBalance1 + 1;
+			else *loadBalance1 = *loadBalance1 - 1;
+			if (*loadBalance1 < 0) *loadBalance1 = 0;
+			else if (*loadBalance1 > ballV.size()) *loadBalance1 = ballV.size();
+			
+			rendezvous1.wait();
+			particles.addPhysics(*loadBalance2, ballV.size());
+			
+			if (*finishFlag2 == true) *loadBalance2 = *loadBalance2 + 1;
+			else *loadBalance2 = *loadBalance2 - 1;
+			if (*loadBalance2 < 0) *loadBalance2 = 0;
+			else if (*loadBalance2 > ballV.size()) *loadBalance2 = ballV.size();
+						
+			rendezvous2.wait();
 		}
 	}
 

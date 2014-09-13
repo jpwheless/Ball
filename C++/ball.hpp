@@ -1,12 +1,9 @@
 #ifndef BALL_HPP
 #define BALL_HPP
 
-#include <SFML/Graphics.hpp>
-#include "vector.hpp"
+#include <atomic>
 
-#define TEXTURE_DIA 10.f // Texture is current 10px in dia
-
-namespace gp {
+namespace z {
 
 class Ball {
 public:
@@ -14,19 +11,40 @@ public:
 	float xVel, yVel;
 	float diameter, radius;
 	float springRate, reboundEfficiency;
+	float attrRad, attrRate;
 	sf::CircleShape ballShape;
 	bool alive;
+	
+	//std::atomic<float> temp = 0;
 
 	Ball() {
 		alive = true;
 		x = y = xVel = yVel = 0;
+		setSize(10.0);
+		setColor(255, 255, 255);
+		
+		//++temp;
 	}
 
-	void update( float frameTime ){
+	void update( float frameTime, const int& xRes, const int& yRes, const bool& bound){
 		if( alive ) {
 			x += xVel * frameTime;
 			y += yVel * frameTime;
 			ballShape.setPosition( x - radius, y - radius );
+			
+			// Boundary conditions
+			if (x < -radius || x > xRes + radius) {
+				if (bound == true) {
+					x = (x < radius)?(radius):((x > xRes-radius)?(xRes-radius):x);
+				}
+				else alive = false;
+			}
+			if (y < -radius || y > yRes + radius) {
+				if (bound == true) {
+					y = (y < radius)?(radius):((y > yRes-radius)?(yRes-radius):y);
+				}
+				else alive = false;
+			}
 		}
 	}
 
@@ -36,13 +54,14 @@ public:
 		ballShape.setPosition( x - radius, y - radius );
 	}
 	
-	void setSize( int ballDia, int r, int g, int b ){
-		diameter = ballDia;
-		radius = ballDia / 2.f;
-		
+	void setSize( int diameter){
+		this->diameter = diameter;
+		radius = diameter / 2.f;
 		ballShape.setRadius(radius);
-		ballShape.setFillColor(sf::Color(r, g, b));
-
+	}
+	
+	void setColor(int r, int g, int b) {
+		ballShape.setFillColor(sf::Color(r, g, b)); 
 	}
 	
 	/*

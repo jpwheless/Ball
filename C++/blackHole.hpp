@@ -4,9 +4,8 @@
 #include <SFML/Graphics.hpp>
 #include <vector>
 #include <cmath>
-#include "vector.hpp"
 
-namespace gp {
+namespace z {
 
 enum InteractionSetting {
 	NO_COLLISION,

@@ -1,2 +1,2 @@
 cls
-processing-java.exe --sketch=E:\Jonathan\Processing\Ball\ --output=C:\temp --run --force
+processing-java.exe --sketch=E:\Jonathan\Projects\Particles\ --output=C:\temp --run --force

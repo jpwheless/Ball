@@ -1,9 +1,10 @@
-#include <SFML/Graphics.hpp>
-
 #include "simulation.hpp"
 
-int main()
-{
-	gp::Simulation sim;
+using namespace std;
+
+// Load params from file and start simulation
+int main() {
+	z::Simulation sim();	
 	sim.launch();
 }
+
