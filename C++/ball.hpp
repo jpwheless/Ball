@@ -7,48 +7,56 @@ namespace z {
 
 class Ball {
 public:
-	float x, y;
-	float xVel, yVel;
-	float diameter, radius;
-	float springRate, reboundEfficiency;
-	float attrRad, attrRate;
+	double x, y;
+	double xVel, yVel;
+	double diameter, radius;
+	double mass;
+	double springRate, reboundEfficiency;
+	double attrRad, attrRate;
 	sf::CircleShape ballShape;
-	bool alive;
+	bool alive, stationary;
 	
-	//std::atomic<float> temp = 0;
+	//std::atomic<double> temp = 0;
 
 	Ball() {
 		alive = true;
+		stationary = false;
 		x = y = xVel = yVel = 0;
 		setSize(10.0);
 		setColor(255, 255, 255);
-		
-		//++temp;
+		mass = 1.f;
 	}
 
-	void update( float frameTime, const int& xRes, const int& yRes, const bool& bound){
-		if( alive ) {
-			x += xVel * frameTime;
-			y += yVel * frameTime;
-			ballShape.setPosition( x - radius, y - radius );
+	void update( const double tickTime, const int xRes, const int yRes, const bool bound){
+		if(alive && !stationary) {
+			x += xVel * tickTime;
+			y += yVel * tickTime;
+			ballShape.setPosition(x - radius, y - radius);
 			
 			// Boundary conditions
-			if (x < -radius || x > xRes + radius) {
+			if (x < -50 || x > xRes + 50) {
 				if (bound == true) {
 					x = (x < radius)?(radius):((x > xRes-radius)?(xRes-radius):x);
+					xVel *= 0.1f;
 				}
 				else alive = false;
 			}
-			if (y < -radius || y > yRes + radius) {
+			if (y < -50 || y > yRes + 50) {
 				if (bound == true) {
 					y = (y < radius)?(radius):((y > yRes-radius)?(yRes-radius):y);
+					yVel *= 0.1f;
 				}
 				else alive = false;
 			}
 		}
+		else if (stationary) {
+			ballShape.setPosition(x - radius, y - radius);
+			xVel = 0;
+			yVel = 0;
+		}
 	}
 
-	void setPosition( float xIn, float yIn ){
+	void setPosition( double xIn, double yIn ){
 		x = xIn;
 		y = yIn;
 		ballShape.setPosition( x - radius, y - radius );

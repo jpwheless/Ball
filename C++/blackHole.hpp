@@ -21,14 +21,14 @@ enum MouseSetting {
 
 class BlackHole {
 public:
-	float x, y, xPerm, yPerm, surfaceAccel, centerAccel;
+	double x, y, xPerm, yPerm, surfaceAccel, centerAccel;
 	int diameter;
-	float mouseFilter;
+	double mouseFilter;
 	InteractionSetting interact;
 	MouseSetting mouseSetting;
 	bool leftMousePressed;
 
-	BlackHole( float xPerm, float yPerm, float surfaceAccel, int diameter, InteractionSetting interact, MouseSetting mouseSetting ) {
+	BlackHole( double xPerm, double yPerm, double surfaceAccel, int diameter, InteractionSetting interact, MouseSetting mouseSetting ) {
 		this->xPerm = xPerm;
 		this->yPerm = yPerm;
 		this->surfaceAccel = surfaceAccel;
@@ -49,13 +49,13 @@ public:
 		}	
 	}
 
-	void processBalls( std::vector<Ball>& ball, float frameTime ) {
+	void processBalls( std::vector<Ball>& ball, double frameTime ) {
 		if ( interact == COLLISION ) {
 			for ( int i = 0; i < ball.size(); i++ ){
 				if(ball[i].alive){
-					float radius = sqrt( pow(ball[i].x - x, 2 ) + pow( ball[i].y - y, 2 ));
+					double radius = sqrt( pow(ball[i].x - x, 2 ) + pow( ball[i].y - y, 2 ));
 					if ( radius < ( ball[i].diameter / 2.f) ) { 
-						float term = ball[i].springRate * ((ball[i].diameter + diameter) / 2.f - radius ) * frameTime;
+						double term = ball[i].springRate * ((ball[i].diameter + diameter) / 2.f - radius ) * frameTime;
 						
 						ball[i].xVel += (( ball[i].x - x ) / radius ) * term;
 						ball[i].yVel += (( ball[i].y - y ) / radius ) * term;
@@ -66,9 +66,9 @@ public:
 
 		if( mouseSetting == STATIONARY || mouseSetting == PERM_AND_MOUSE || ( mouseSetting == MOUSE_CONTROL && leftMousePressed )) {
 			for ( int i = 0; i < ball.size(); i++ ){
-				float term;
+				double term;
 				if( ball[i].alive ) {
-					float radius = sqrt( pow(ball[i].x - x, 2) + pow( ball[i].y - y, 2) );
+					double radius = sqrt( pow(ball[i].x - x, 2) + pow( ball[i].y - y, 2) );
 
 					if ( radius < ( diameter / 2.f )) {
 						term = (centerAccel / pow(radius, 2)) *  frameTime;

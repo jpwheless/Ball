@@ -20,7 +20,7 @@ static final float mouseFilt = 0.05;
 static final int flashDia = 300; // Must be more than bh.dia+2
 
 boolean enableLinGrav = true;
-static final float yGravity = 000.0;
+static final float yGravity = 1000.0;
 static final float xGravity = 0.0;
 
 boolean enableCollision = true;
@@ -28,9 +28,9 @@ static final float ballSpringRate = 50000.0; // pixels/sec^2 per pixel
 static final float ballRebEff = 0.7;
 
 boolean enableSticky = true;
-static final float ballSurface = 10000.0; // 10000 50000
+static final float ballSurface = 50000.0; // 10000 50000
 static final float ballAttractRate = ballSurface*sq(ballRad); // pixels/sec^2 per pixel 
-static final float ballAttractRad = 500.f; // 20 10
+static final float ballAttractRad = 5.f; // 20 10
 
 static final boolean debugOn = false;
 
