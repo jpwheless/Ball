@@ -225,7 +225,7 @@ public:
 		particles->initialNumBalls = 500;
 		particles->defaultBallDia = 10.0;
 		particles->defaultBallSprRate = 50000.f;
-		particles->defaultBallebEff = 0.7;
+		particles->defaultBallebEff = 0.9;
 		particles->defaultBallAttrRate = 25000.f * pow(particles->defaultBallDia/2.f, 2.f); // Surface rate to center rate
 		particles->defaultBallAttrRad = 5.f;	
 
@@ -452,14 +452,16 @@ public:
 			// If thread #1 has finished first, then increase its load
 			if (*finishFlag1 == true) *loadBalance1 = *loadBalance1 + 1;
 			else *loadBalance1 = *loadBalance1 - 1;
-			*loadBalance1 = (*loadBalance1 < 0)?(0):((*loadBalance1 > particles->size())?particles->size():*loadBalance1)
+			if (*loadBalance1 < 0) *loadBalance1 = 0;
+			else if (*loadBalance1 > particles->size()) *loadBalance1 = particles->size();
 			
 			rendezvous1.wait();
 			particles->addPhysics(*loadBalance2, particles->size());
 			
 			if (*finishFlag2 == true) *loadBalance2 = *loadBalance2 + 1;
 			else *loadBalance2 = *loadBalance2 - 1;
-			*loadBalance2 = (*loadBalance2 < 0)?(0):((*loadBalance2 > particles->size())?particles->size():*loadBalance2)
+			if (*loadBalance2 < 0) *loadBalance2 = 0;
+			else if (*loadBalance2 > particles->size()) *loadBalance2 = particles->size();
 						
 			rendezvous2.wait();
 		}

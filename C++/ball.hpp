@@ -16,7 +16,7 @@ public:
 	sf::CircleShape ballShape;
 	bool alive, stationary;
 	
-	//std::atomic<double> temp = 0;
+	//std::atomic_bool mStopEvent{false};
 
 	Ball() {
 		alive = true;

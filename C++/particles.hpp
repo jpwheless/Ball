@@ -159,44 +159,45 @@ public:
 										double attrRate, double attrRad, bool stationary) {
 		std::vector<int> list;
 		double ballRad = ballDia/2.f;
+		int tempListPos;
 		
 		double xIt, yIt;
 		int rows = (rad - ballRad)/(ballDia*sin(PI60));
 		yIt = y - rows*ballDia*sin(PI60);
-		
 		int j = 0;
 		while (abs(yIt - y) < rad - ballRad) {
 		
 			if (j%2) xIt = x + ballDia*cos(PI60);
 			else xIt = x;
 			while (sqrt(pow(xIt - x, 2.0) + pow(yIt - y, 2.0)) < rad - ballRad) {
-				list.push_back(createParticle(xIt, yIt, 0, 0, ballDia, springRate, rebEff, attrRate, attrRad, true));
+				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, springRate, rebEff, attrRate, attrRad, true);
+				if (tempListPos >= 0) list.push_back(tempListPos);
 				xIt += ballDia;
 			}
-			
 			if (j%2) xIt = x - ballDia*cos(PI60);
 			else xIt = x - ballDia;
 			while (sqrt(pow(xIt - x, 2.0) + pow(yIt - y, 2.0)) < rad - ballRad) {
-				list.push_back(createParticle(xIt, yIt, 0, 0, ballDia, springRate, rebEff, attrRate, attrRad, true));
+				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, springRate, rebEff, attrRate, attrRad, true);
+				if (tempListPos >= 0) list.push_back(tempListPos);
 				xIt -= ballDia;
 			}
 			yIt += ballDia*sin(PI60);
 			j++;
 		}
-		
 		double velX = vel*cos(dir);
 		double velY = vel*sin(dir);
 		for (int j = 0; j < list.size(); j++) {
 			if (!stationary) ballV[list[j]].stationary = false;
 			ballV[list[j]].xVel = velX;
 			ballV[list[j]].yVel = velY;
-		}		
+		}
 	}
-		
+
+
 	int createParticle(double xPos, double yPos, double vel, double dir,
 											double ballDia, double springRate, double rebEff,
 											double attrRate, double attrRad, bool stationary) {
-		
+
 		double radius = ballDia/2.f;
 		bool collision = false;
 		if (xPos > *resX - radius || xPos < radius || yPos > *resY - radius || yPos < radius) {
@@ -211,7 +212,6 @@ public:
 				}
 			}
 		}
-		
 		if (!collision) {
 			int i = 0;
 			bool inactiveBall = false;
@@ -222,6 +222,7 @@ public:
 				}
 				i++;
 			}
+			
 			if (inactiveBall) {
 				ballV[i].setSize(ballDia);
 				ballV[i].setColor(rand()%255, rand()%255, rand()%255);
@@ -248,6 +249,7 @@ public:
 				return ballV.size() - 1;
 			}
 		}
+		else return -1;
 	}
 	
 	void addPhysics(unsigned int iStart, unsigned int iStop) {
