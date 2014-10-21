@@ -13,7 +13,8 @@ namespace z {
 class Particles {
 public:
 	int *resX, *resY;
-	double *tickTime, *linGravity;
+	double *tickTime;
+	double linGravity;
 	bool particleCollisions;
 	bool particleStickyness;
 	bool particleBoundary;
@@ -25,24 +26,34 @@ public:
 	double defaultBallAttrRate;
 	double defaultBallAttrRad;
 	
+	// Add small, medium, large
+	// Add dense, regular, light
+	
 	double prevX;
 	double prevY;
 	
 	std::vector<z::Ball> ballV;
 	std::vector<z::BlackHole> bhV;
-	z::BlackHole *bhPerm;
 	
 	std::vector<int> listParticles;
+	std::vector<int> listBH;
 	
-	int numAlive;
+	int ballAlive;
+	int bhAlive;
 	
-	Particles(int *resX, int *resY, double *tickTime, double *linGravity) {
+	double maxParticleVel;
+	
+	Particles(int *resX, int *resY, double *tickTime, double linGravity) {
 		this->resX = resX;
 		this->resY = resY;
 		this->tickTime = tickTime;
 		this->linGravity = linGravity;
 		
-		bhPerm = new BlackHole(*resX/2.f, *resX/2.f, -400000.0, 20, COLLISION, STATIONARY);
+		z::BlackHole bhPerm = BlackHole(0, 0, -400000.0, 20, COLLISION);
+		bhV.push_back(bhPerm);
+		bhAlive = 1;
+		ballAlive = 0;
+		maxParticleVel = 0;
 	}
 	
 	double randF(double limit) {
@@ -105,16 +116,42 @@ public:
 		}
 	}
 	
+	void cleanBH() {
+		int front = 1;
+		int back = bhV.size() - 1;
+		while (front < back) {
+			while (bhV[front].active && front < bhV.size()) front++; // Find dead ball
+			while (!bhV[back].active && back >= 1) back--; // Find live ball
+			if (front < back) std::swap(bhV[front],bhV[back]); // Swap
+		}
+		
+		back = bhV.size();
+		while (back >= 1) {
+			if (!bhV[back-1].active) back--;
+			else break;
+		}
+		if (back < bhV.size()) {
+			bhV.erase(bhV.begin()+back, bhV.end());
+		}
+	}
+	
 	void immobilizeCloud(double x, double y, double rad) {
-		listParticles.clear();
 		prevX = x;
 		prevY = y;
 		for (int i = 0; i < ballV.size(); i++) {
 			if (ballV[i].alive) {
 				double dist = sqrt(pow(ballV[i].x - x, 2.0) + pow(ballV[i].y - y, 2.0));
-				if (dist <= rad - ballV[i].radius) {
+				if (dist <= rad) {
 					listParticles.push_back(i);
 					ballV[i].stationary = true;
+				}
+			}
+		}
+		for (int j = 0; j < bhV.size(); j++) {
+			if (bhV[j].active) {
+				double dist = sqrt(pow(bhV[j].x - x, 2.0) + pow(bhV[j].y - y, 2.0));
+				if (dist <= rad) {
+					listBH.push_back(j);
 				}
 			}
 		}
@@ -126,8 +163,12 @@ public:
 		double deltaY = y - prevY;
 		if (deltaX != 0 || deltaY != 0) {
 			for (int j = 0; j < listParticles.size(); j++) {
-				ballV[listParticles[j]].x += deltaX;
-				ballV[listParticles[j]].y += deltaY;
+				ballV[listParticles[j]].xMove += deltaX;
+				ballV[listParticles[j]].yMove += deltaY;
+			}
+			for (int k = 0; k < listBH.size(); k++) {
+				bhV[listBH[k]].xMove += deltaX;
+				bhV[listBH[k]].yMove += deltaY;
 			}
 		}
 		prevX = x;
@@ -138,7 +179,9 @@ public:
 	void mobilizeCloud() {
 		for (int j = 0; j < listParticles.size(); j++) {
 			ballV[listParticles[j]].stationary = false;
-		}	
+		}
+		listParticles.clear();
+		listBH.clear();
 	}
 	
 	// Erase a spherical region of particles
@@ -148,6 +191,14 @@ public:
 				double dist = sqrt(pow(ballV[i].x - x, 2.0) + pow(ballV[i].y - y, 2.0));
 				if (dist <= rad) {
 					ballV[i].alive = false;
+				}
+			}
+		}
+		for (int j = 1; j < bhV.size(); j++) {
+			if (bhV[j].active) {
+				double dist = sqrt(pow(bhV[j].x - x, 2.0) + pow(bhV[j].y - y, 2.0));
+				if (dist <= rad) {
+					bhV[j].active = false;
 				}
 			}
 		}
@@ -162,21 +213,21 @@ public:
 		int tempListPos;
 		
 		double xIt, yIt;
-		int rows = (rad - ballRad)/(ballDia*sin(PI60));
+		int rows = (rad)/(ballDia*sin(PI60));
 		yIt = y - rows*ballDia*sin(PI60);
 		int j = 0;
-		while (abs(yIt - y) < rad - ballRad) {
+		while (abs(yIt - y) < rad) {
 		
 			if (j%2) xIt = x + ballDia*cos(PI60);
 			else xIt = x;
-			while (sqrt(pow(xIt - x, 2.0) + pow(yIt - y, 2.0)) < rad - ballRad) {
+			while (sqrt(pow(xIt - x, 2.0) + pow(yIt - y, 2.0)) < rad) {
 				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, springRate, rebEff, attrRate, attrRad, true);
 				if (tempListPos >= 0) list.push_back(tempListPos);
 				xIt += ballDia;
 			}
 			if (j%2) xIt = x - ballDia*cos(PI60);
 			else xIt = x - ballDia;
-			while (sqrt(pow(xIt - x, 2.0) + pow(yIt - y, 2.0)) < rad - ballRad) {
+			while (sqrt(pow(xIt - x, 2.0) + pow(yIt - y, 2.0)) < rad) {
 				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, springRate, rebEff, attrRate, attrRad, true);
 				if (tempListPos >= 0) list.push_back(tempListPos);
 				xIt -= ballDia;
@@ -213,7 +264,7 @@ public:
 			}
 		}
 		if (!collision) {
-			int i = 0;
+			int i = 1;
 			bool inactiveBall = false;
 			while(i < ballV.size()) {
 				if(!ballV[i].alive) {
@@ -252,11 +303,41 @@ public:
 		else return -1;
 	}
 	
+	void createBH(int x, int y, double surfaceAccel, int diameter, InteractionSetting interact) {
+		int i = 1;
+		bool inactiveBH = false;
+		while(i < bhV.size()) {
+			if(!bhV[i].active) {
+				inactiveBH = true;
+				break;
+			}
+			i++;
+		}
+		
+		if (inactiveBH) {
+			bhV[i].setSize(diameter);
+			bhV[i].setAttraction(surfaceAccel);
+			bhV[i].setPosition(x, y);
+			bhV[i].interact = interact;
+			bhV[i].active = true;
+		}
+		else {
+			z::BlackHole bhTemp = BlackHole(x, y, surfaceAccel, diameter, interact);
+			bhTemp.active = true;
+			bhV.push_back(bhTemp);
+		}
+	}
+	
 	void addPhysics(unsigned int iStart, unsigned int iStop) {
 		//iStart = (iStart < 0)?(0):((iStart > ballV.size())?ballV.size():iStart);
 		//iStop = (iStop > ballV.size())?ballV.size():iStop;
 		for ( int i = iStart; i < iStop; i++ ) {
 			ballV[i].update(*tickTime, *resX, *resY, particleBoundary);
+		}
+		if (iStart == 0) {
+			for (int k = 0; k < bhV.size(); k++) {
+				bhV[k].update(*tickTime);
+			}
 		}
 	}
 
@@ -341,23 +422,72 @@ public:
 				}
 				else {
 					// Linear gravity
-					ballV[i].yVel += (*linGravity)*(*tickTime);
+					ballV[i].yVel += (linGravity)*(*tickTime);
+				}
+				
+				// Black hole effects
+				for (int k = 0; k < bhV.size(); k++) {
+					if (bhV[k].active == true) {
+						double term;
+						double dist = sqrt(pow(ballV[i].x - bhV[k].x, 2.f) + pow(ballV[i].y - bhV[k].y, 2.f));
+						if (bhV[k].interact == COLLISION && dist < ballV[i].radius + bhV[k].radius) { 
+							term = ballV[i].springRate*(ballV[i].radius + bhV[k].radius - dist)*(*tickTime);
+							
+							ballV[i].xVel += ((ballV[i].x - bhV[k].x)/dist)*term;
+							ballV[i].yVel += ((ballV[i].y - bhV[k].y)/dist)*term;
+						}
+						else {
+							if (dist > bhV[k].radius) {
+								term = (bhV[k].centerAccel/pow(dist, 2))*(*tickTime);
+							}
+							else {
+								if (bhV[k].interact = DESTRUCTION ){
+									ballV[i].alive = false;
+								}
+								else {
+									term = bhV[k].surfaceAccel*(*tickTime);
+								}
+							}
+
+							ballV[i].xVel += ((bhV[k].x - ballV[i].x)/dist)*term;
+							ballV[i].yVel += ((bhV[k].y - ballV[i].y)/dist)*term;
+						}
+					}
 				}
 			}
 		}
 	}
-	
+		
 	void draw(sf::RenderWindow* mainWindow) {
 		int tempCount = 0;
+		double maxVel = 0;
+		double vel;
 		// Draw all particles in ball vector
-		for ( int i = 0; i < ballV.size(); i++ ) {
+		for (int i = 0; i < ballV.size(); i++ ) {
 			if (ballV[i].alive) {
 				tempCount++;
+				vel = sqrt(pow(ballV[i].xVel, 2.0) + pow(ballV[i].yVel, 2.0));
+				if (vel > maxVel) maxVel = vel;
 				mainWindow->draw(ballV[i].ballShape);
+				;
 			}
 		}
-		numAlive = tempCount;
-		if (ballV.size() - numAlive >= 500) cleanParticles();
+		ballAlive = tempCount;
+		if (ballV.size() - ballAlive >= 500) cleanParticles();
+		
+		maxParticleVel = maxVel;
+		
+		tempCount = 0;
+		for (int i = 0; i < bhV.size(); i++ ) {
+			if (bhV[i].active) {
+				//std::cout << "yes\n";
+				tempCount++;
+				mainWindow->draw(bhV[i].ballShape);
+			}
+		}
+		bhAlive = tempCount;
+		if (bhV.size() - bhAlive >= 10) cleanBH();
+
 	}
 };
 

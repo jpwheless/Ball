@@ -5,6 +5,8 @@
 #include <vector>
 #include <cmath>
 
+#define MOUSE_FILT 30.0
+
 namespace z {
 
 enum InteractionSetting {
@@ -13,78 +15,65 @@ enum InteractionSetting {
 	COLLISION
 };
 
-enum MouseSetting {
-	STATIONARY,
-	MOUSE_CONTROL,
-	PERM_AND_MOUSE
-};
-
 class BlackHole {
 public:
-	double x, y, xPerm, yPerm, surfaceAccel, centerAccel;
-	int diameter;
-	double mouseFilter;
+	double x, y;
+	double xMove, yMove;
+	double surfaceAccel, centerAccel;
+	double diameter, radius;
+	bool active;
 	InteractionSetting interact;
-	MouseSetting mouseSetting;
-	bool leftMousePressed;
+	
+	sf::CircleShape ballShape;
 
-	BlackHole( double xPerm, double yPerm, double surfaceAccel, int diameter, InteractionSetting interact, MouseSetting mouseSetting ) {
-		this->xPerm = xPerm;
-		this->yPerm = yPerm;
-		this->surfaceAccel = surfaceAccel;
-		this->centerAccel = surfaceAccel * pow( diameter / 2.f , 2);
-		this->diameter = diameter;
+	BlackHole(double x, double y, double surfaceAccel, int diameter, InteractionSetting interact) {
+		setAttraction(surfaceAccel);
+		setSize(diameter);
+		setPosition(x, y);
+		active = false;
 		this->interact = interact;
-		this->mouseSetting = mouseSetting;
-		mouseFilter = 0.05;
 	}
 
-	void processInput( int mouseX, int mouseY, bool leftMousePressed ) {
-		this->leftMousePressed = leftMousePressed;
-		if( mouseSetting != STATIONARY ) {
-			if( leftMousePressed ) {
-				x = mouseFilter * xPerm + ( 1.f - mouseFilter ) * x;
-				y = mouseFilter * yPerm + ( 1.f - mouseFilter ) * y; 
-			}
-		}	
+	void filteredMove(int mouseX, int mouseY) {
+		xMove = mouseX;
+		yMove = mouseY;
+	}
+	
+	void update(const double tickTime) {
+		if (active) {
+			x += MOUSE_FILT*tickTime*(xMove - x);
+			y += MOUSE_FILT*tickTime*(yMove - y);
+			ballShape.setPosition(x - radius, y - radius);
+		}
+	}
+	
+	void setPosition(int x, int y) {
+		this->x = x;
+		this->y = y;
+		this->xMove = x;
+		this->yMove = y;
+		ballShape.setPosition(x - radius, y - radius);
 	}
 
-	void processBalls( std::vector<Ball>& ball, double frameTime ) {
-		if ( interact == COLLISION ) {
-			for ( int i = 0; i < ball.size(); i++ ){
-				if(ball[i].alive){
-					double radius = sqrt( pow(ball[i].x - x, 2 ) + pow( ball[i].y - y, 2 ));
-					if ( radius < ( ball[i].diameter / 2.f) ) { 
-						double term = ball[i].springRate * ((ball[i].diameter + diameter) / 2.f - radius ) * frameTime;
-						
-						ball[i].xVel += (( ball[i].x - x ) / radius ) * term;
-						ball[i].yVel += (( ball[i].y - y ) / radius ) * term;
-					}
-				}
-			}
-		}
-
-		if( mouseSetting == STATIONARY || mouseSetting == PERM_AND_MOUSE || ( mouseSetting == MOUSE_CONTROL && leftMousePressed )) {
-			for ( int i = 0; i < ball.size(); i++ ){
-				double term;
-				if( ball[i].alive ) {
-					double radius = sqrt( pow(ball[i].x - x, 2) + pow( ball[i].y - y, 2) );
-
-					if ( radius < ( diameter / 2.f )) {
-						term = (centerAccel / pow(radius, 2)) *  frameTime;
-					} else {
-						if ( interact = DESTRUCTION ){
-							ball[i].alive = false;
-						} else {
-							term = surfaceAccel * frameTime;
-						}
-					}
-
-					ball[i].xVel += (( x - ball[i].x ) / radius) * term;
-					ball[i].yVel += (( y - ball[i].y ) / radius) * term;
-				}
-			}
-		}
+	void setSize(int diameter){
+		this->diameter = diameter;
+		radius = diameter/2.f;
+		ballShape.setRadius(radius);
+		centerAccel = surfaceAccel*pow(radius, 2);
+	}
+	
+	void setAttraction(double surfaceAccel) {
+		this->surfaceAccel = surfaceAccel;
+		centerAccel = surfaceAccel*pow(radius, 2);
+		if (surfaceAccel < 0) setColor(255, 255, 255);
+		else if (surfaceAccel == 0) setColor(127, 127, 127);
+		else setColor(0, 0, 0);
+	}
+	
+	void setColor(int r, int g, int b) {
+		ballShape.setOutlineColor(sf::Color::White);
+		ballShape.setOutlineThickness(1);
+		ballShape.setFillColor(sf::Color(r, g, b)); 
 	}
 };
 }

@@ -3,11 +3,14 @@
 
 #include <atomic>
 
+#define DRAG_FILT 10.0
+
 namespace z {
 
 class Ball {
 public:
 	double x, y;
+	double xMove, yMove;
 	double xVel, yVel;
 	double diameter, radius;
 	double mass;
@@ -27,39 +30,47 @@ public:
 		mass = 1.f;
 	}
 
-	void update( const double tickTime, const int xRes, const int yRes, const bool bound){
-		if(alive && !stationary) {
-			x += xVel * tickTime;
-			y += yVel * tickTime;
-			ballShape.setPosition(x - radius, y - radius);
-			
-			// Boundary conditions
-			if (x < -50 || x > xRes + 50) {
-				if (bound == true) {
-					x = (x < radius)?(radius):((x > xRes-radius)?(xRes-radius):x);
-					xVel *= 0.1f;
-				}
-				else alive = false;
+	void update(const double tickTime, const int xRes, const int yRes, const bool bound){
+		if(alive) {
+			if (stationary) {
+				xVel = DRAG_FILT*(xMove - x);
+				yVel = DRAG_FILT*(yMove - y);
+				x += xVel*tickTime;
+				y += yVel*tickTime;
+				ballShape.setPosition(x - radius, y - radius);
 			}
-			if (y < -50 || y > yRes + 50) {
+			else {
+				x += xVel * tickTime;
+				y += yVel * tickTime;
+				ballShape.setPosition(x - radius, y - radius);
+				
+				xMove = x;
+				yMove = y;
+				
+				// Boundary conditions
 				if (bound == true) {
-					y = (y < radius)?(radius):((y > yRes-radius)?(yRes-radius):y);
-					yVel *= 0.1f;
+					if (x < -50 || x > xRes + 50) {
+						x = (x < radius)?(radius):((x > xRes-radius)?(xRes-radius):x);
+						xVel *= 0.1f;
+					}
+					if (y < -50 || y > yRes + 50) {
+						y = (y < radius)?(radius):((y > yRes-radius)?(yRes-radius):y);
+						yVel *= 0.1f;
+					}
 				}
-				else alive = false;
+				else {
+					if (x < 0 || x > xRes || y < 0 || y > yRes) {
+						alive = false;
+					}
+				}
 			}
-		}
-		else if (stationary) {
-			ballShape.setPosition(x - radius, y - radius);
-			xVel = 0;
-			yVel = 0;
 		}
 	}
 
 	void setPosition( double xIn, double yIn ){
 		x = xIn;
 		y = yIn;
-		ballShape.setPosition( x - radius, y - radius );
+		ballShape.setPosition(x - radius, y - radius);
 	}
 	
 	void setSize( int diameter){

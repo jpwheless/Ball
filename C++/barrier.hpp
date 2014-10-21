@@ -37,9 +37,5 @@ public:
 			return false;
 		}
 	}
-	
-
 };
-
-
 }
