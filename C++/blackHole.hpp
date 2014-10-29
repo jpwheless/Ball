@@ -25,6 +25,8 @@ public:
 	InteractionSetting interact;
 	
 	sf::CircleShape ballShape;
+	
+	static double *tickTime;
 
 	BlackHole(double x, double y, double surfaceAccel, int diameter, InteractionSetting interact) {
 		setAttraction(surfaceAccel);
@@ -39,10 +41,10 @@ public:
 		yMove = mouseY;
 	}
 	
-	void update(const double tickTime) {
+	void update() {
 		if (active) {
-			x += MOUSE_FILT*tickTime*(xMove - x);
-			y += MOUSE_FILT*tickTime*(yMove - y);
+			x += MOUSE_FILT*(*tickTime)*(xMove - x);
+			y += MOUSE_FILT*(*tickTime)*(yMove - y);
 			ballShape.setPosition(x - radius, y - radius);
 		}
 	}
@@ -76,6 +78,9 @@ public:
 		ballShape.setFillColor(sf::Color(r, g, b)); 
 	}
 };
+
+double *BlackHole::tickTime;
+
 }
 
 #endif

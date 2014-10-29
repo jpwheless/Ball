@@ -1,7 +1,6 @@
 #ifndef BALL_HPP
 #define BALL_HPP
 
-#include <atomic>
 
 #define DRAG_FILT 10.0
 
@@ -18,10 +17,17 @@ public:
 	double attrRad, attrRate;
 	sf::CircleShape ballShape;
 	bool alive, stationary;
+		
+	static bool *boundCeiling;
+	static bool *boundWalls;
+	static bool *boundFloor;
+	static double *tickTime;
+	static int *resX;
+	static int *resY;
 	
 	//std::atomic_bool mStopEvent{false};
 
-	Ball() {
+	Ball() {		
 		alive = true;
 		stationary = false;
 		x = y = xVel = yVel = 0;
@@ -30,38 +36,40 @@ public:
 		mass = 1.f;
 	}
 
-	void update(const double tickTime, const int xRes, const int yRes, const bool bound){
-		if(alive) {
+	void update() {
+		if (alive) {
 			if (stationary) {
 				xVel = DRAG_FILT*(xMove - x);
 				yVel = DRAG_FILT*(yMove - y);
-				x += xVel*tickTime;
-				y += yVel*tickTime;
+				x += xVel*(*tickTime);
+				y += yVel*(*tickTime);
 				ballShape.setPosition(x - radius, y - radius);
 			}
 			else {
-				x += xVel * tickTime;
-				y += yVel * tickTime;
+				x += xVel*(*tickTime);
+				y += yVel*(*tickTime);
 				ballShape.setPosition(x - radius, y - radius);
 				
 				xMove = x;
 				yMove = y;
 				
 				// Boundary conditions
-				if (bound == true) {
-					if (x < -50 || x > xRes + 50) {
-						x = (x < radius)?(radius):((x > xRes-radius)?(xRes-radius):x);
+				/*
+				if (*boundCeiling == true) {
+					if (x < -50 || x > (*resX) + 50) {
+						x = (x < radius)?(radius):((x > (*resX)-radius)?((*resX)-radius):x);
 						xVel *= 0.1f;
 					}
-					if (y < -50 || y > yRes + 50) {
-						y = (y < radius)?(radius):((y > yRes-radius)?(yRes-radius):y);
+					if (y < -50 || y > (*resY) + 50) {
+						y = (y < radius)?(radius):((y > (*resY)-radius)?((*resY)-radius):y);
 						yVel *= 0.1f;
 					}
 				}
 				else {
-					if (x < 0 || x > xRes || y < 0 || y > yRes) {
-						alive = false;
-					}
+				*/
+				if ((!*boundWalls && (x < -radius || x > (*resX) + radius)) ||
+						(!*boundCeiling && y < -radius) || (!*boundFloor && y > (*resY) + radius)) {
+					alive = false;
 				}
 			}
 		}
@@ -70,6 +78,8 @@ public:
 	void setPosition( double xIn, double yIn ){
 		x = xIn;
 		y = yIn;
+		xMove = xIn;
+		yMove = yIn;
 		ballShape.setPosition(x - radius, y - radius);
 	}
 	
@@ -82,7 +92,7 @@ public:
 	void setColor(int r, int g, int b) {
 		ballShape.setFillColor(sf::Color(r, g, b)); 
 	}
-	
+		
 	/*
 	void setTexture( sf::Texture &texture, int ballDia, int r, int g, int b ){
 		diameter = ballDia;
@@ -97,6 +107,14 @@ public:
 	*/
 };
 
+bool *Ball::boundCeiling;
+bool *Ball::boundWalls;
+bool *Ball::boundFloor;
+double *Ball::tickTime;
+int *Ball::resX;
+int *Ball::resY;
+
 }
+
 
 #endif

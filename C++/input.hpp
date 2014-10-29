@@ -45,8 +45,11 @@ public:
 	bool mousePressed;
 	bool mouseHeld;
 	bool mouseReleased;
+	bool modeChanged;
 	
 	bool bhPermanent;
+	bool paintOvr;
+	bool paintForce;
 	
 	sf::Vertex shootLine[2];
 	
@@ -74,11 +77,14 @@ public:
 		mousePressed = false;
 		mouseHeld = false;
 		mouseReleased = false;
+		modeChanged = false;
 		
 		bhPermanent = false;
+		paintOvr = false;
+		paintForce = false;
+		
 		bhIinteract = COLLISION;
 		bhRad = particles->bhV[0].radius;
-		
 	}
 	
 	void update() {
@@ -97,6 +103,7 @@ public:
 					break;
 				case 2: // Drag
 					if (mousePressed) {
+						particles->mobilizeCloud();
 						particles->immobilizeCloud(mouseX, mouseY, mouseRad);
 					}
 					else if (mouseHeld) {
@@ -107,19 +114,37 @@ public:
 					}
 					break;
 				case 3: // Paint
-					if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && mouseX <= *resX) {
+					if (paintOvr) {
+						if (mouseReleased && mouseX <= *resX) {
+							particles->deactivateCloud(mouseX, mouseY, mouseRad);
+							particles->createCloud(mouseX, mouseY, mouseRad, 0, 0,
+																			particles->defaultBallDia, particles->defaultBallSprRate,
+																			particles->defaultBallebEff, particles->defaultBallAttrRate,
+																			particles->defaultBallAttrRad, false, false);
+						}
+					}
+					else if (paintForce) {
+						if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && mouseX <= *resX) { 
+							particles->createCloud(mouseX, mouseY, mouseRad, 0, 0,
+																			particles->defaultBallDia, particles->defaultBallSprRate,
+																			particles->defaultBallebEff, particles->defaultBallAttrRate,
+																			particles->defaultBallAttrRad, false, true);
+						}
+					}
+					else if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && mouseX <= *resX) {
 						particles->createCloud(mouseX, mouseY, mouseRad, 0, 0,
 																		particles->defaultBallDia, particles->defaultBallSprRate,
 																		particles->defaultBallebEff, particles->defaultBallAttrRate,
-																		particles->defaultBallAttrRad, false);
+																		particles->defaultBallAttrRad, false, false);
 					}
 					break;
 				case 4: // Shoot
 					if (mouseReleased && mouseX <= *resX) {
+						particles->deactivateCloud(mouseX, mouseY, mouseRad);
 						particles->createCloud(mouseX, mouseY, mouseRad, shootVel, shootAng,
 																		particles->defaultBallDia, particles->defaultBallSprRate,
 																		particles->defaultBallebEff, particles->defaultBallAttrRate,
-																		particles->defaultBallAttrRad, false);
+																		particles->defaultBallAttrRad, false, false);
 					}
 					break;
 				case 5: // Place Blackhole
@@ -129,7 +154,11 @@ public:
 					break;
 				case 6: // Control Blackhole
 					if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && mouseX <= *resX) {
-						if (mousePressed && !bhPermanent) particles->bhV[0].active = true;
+						if (mousePressed && !bhPermanent) {
+							particles->bhV[0].x = mouseX;
+							particles->bhV[0].y = mouseY;
+							particles->bhV[0].active = true;
+						}
 						particles->bhV[0].xMove = mouseX;
 						particles->bhV[0].yMove = mouseY;
 					}
@@ -145,8 +174,10 @@ public:
 					break;
 			}
 		}
+		// Reset flags
 		mousePressed = false;
 		mouseReleased = false;
+		modeChanged = false;
 	}
 		
 	// Handle mouse wheel events

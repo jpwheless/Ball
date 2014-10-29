@@ -29,6 +29,7 @@
 #define STICKY_NONE 10
 
 #define MIN_TICKTIME 0.0025
+#define TICKTIME_AVGFILT 0.05f
 
 
 namespace z {
@@ -43,18 +44,23 @@ private:
 	sfg::Window::Ptr guiWindow;
 	sfg::CheckButton::Ptr cbStickyness;
 	sfg::CheckButton::Ptr cbCollision;
-	sfg::CheckButton::Ptr cbBoundaries;
 	sfg::CheckButton::Ptr cbGravity;
-	sfg::Button::Ptr bDebug;
-	sfg::Button::Ptr bClean;
+	sfg::CheckButton::Ptr cbBoundCeiling;
+	sfg::CheckButton::Ptr cbBoundWalls;
+	sfg::CheckButton::Ptr cbBoundFloor;
+	sfg::Button::Ptr bClear;
+	sfg::Button::Ptr bStop;
 	
-	sfg::RadioButton::Ptr mouseFuncRadio1; // Erase
-	sfg::RadioButton::Ptr mouseFuncRadio2; // Drag
-	sfg::RadioButton::Ptr mouseFuncRadio3; // Paint
-	sfg::RadioButton::Ptr mouseFuncRadio4; // Shoot
-	sfg::RadioButton::Ptr mouseFuncRadio5; // Place Blackhole
-	sfg::RadioButton::Ptr mouseFuncRadio6; // Control Blackhole
+	sfg::RadioButton::Ptr mouseFuncErase; // Erase
+	sfg::RadioButton::Ptr mouseFuncDrag; // Drag
+	sfg::RadioButton::Ptr mouseFuncPaint; // Paint
+	sfg::RadioButton::Ptr mouseFuncShoot; // Shoot
+	sfg::RadioButton::Ptr mouseFuncPlaceBH; // Place Blackhole
+	sfg::RadioButton::Ptr mouseFuncControlBH; // Control Blackhole
 	sfg::CheckButton::Ptr bhPermCheckButton;
+	sfg::CheckButton::Ptr paintOvrCheckButton;
+	sfg::CheckButton::Ptr paintForceCheckButton;
+	
 
 
 	sf::Clock clockP;
@@ -88,12 +94,20 @@ private:
 	void buttonStickyness() {
 		particles->particleStickyness = cbStickyness->IsActive();
 	}
-	void buttonBoundaries() {
-		particles->particleBoundary = cbBoundaries->IsActive();
-	}
 	void buttonGravity() {
 		particles->linGravity = (cbGravity->IsActive())?linGravity:0.f;
 	}
+	void buttonBoundCeiling() {
+		particles->boundCeiling = cbBoundCeiling->IsActive();
+	}
+	void buttonBoundFloor() {
+		particles->boundFloor = cbBoundFloor->IsActive();
+	}
+	void buttonBoundWalls() {
+		particles->boundWalls = cbBoundWalls->IsActive();
+	}
+	
+	/*
 	void buttonDebug() {
 		for (int i = 0; i < particles->ballV.size(); i++) {
 			std::cout << "Particle " << i << ": ";
@@ -107,17 +121,22 @@ private:
 		}
 		std::cout << "\n";
 	}
-	void buttonClean() {
-		//particles->cleanParticles();
-		particles->createInitBalls();
+	*/
+	void buttonClear() {
+		particles->clearParticles();
 	}
-	void buttonMouseSelect () {
-		if(mouseFuncRadio1->IsActive()) input->mouseMode = 1;
-		else if(mouseFuncRadio2->IsActive()) input->mouseMode = 2;
-		else if(mouseFuncRadio3->IsActive()) input->mouseMode = 3;
-		else if(mouseFuncRadio4->IsActive()) input->mouseMode = 4;
-		else if(mouseFuncRadio5->IsActive()) input->mouseMode = 5;
-		else if(mouseFuncRadio6->IsActive()) input->mouseMode = 6;
+	void buttonStop() {
+		particles->zeroVel();
+	}
+	void buttonMouseSelect() {
+		if(mouseFuncErase->IsActive()) input->mouseMode = 1;
+		else if(mouseFuncDrag->IsActive()) input->mouseMode = 2;
+		else if(mouseFuncPaint->IsActive()) input->mouseMode = 3;
+		else if(mouseFuncShoot->IsActive()) input->mouseMode = 4;
+		else if(mouseFuncPlaceBH->IsActive()) input->mouseMode = 5;
+		else if(mouseFuncControlBH->IsActive()) input->mouseMode = 6;
+		input->modeChanged = true;
+
 	}
 	void buttonPermanence() {
 		input->bhPermanent = bhPermCheckButton->IsActive();
@@ -130,13 +149,30 @@ private:
 			particles->bhV[0].active = false;
 		}
 	}
-	
+	void buttonPaintOvr() {
+		if (paintOvrCheckButton->IsActive()) {
+			input->paintOvr = true;
+			paintForceCheckButton->SetActive(false);
+		}
+		else input->paintOvr = false;
+		mouseFuncPaint->SetActive(true);
+		buttonMouseSelect();
+	}
+	void buttonPaintForce() {
+		if (paintForceCheckButton->IsActive()) {
+			input->paintForce = true;
+			paintOvrCheckButton->SetActive(false);
+		}
+		else input->paintForce = false;
+		mouseFuncPaint->SetActive(true);
+		buttonMouseSelect();
+	}
 	
 	// Call after initGUI().
 	void initSFML() {
 		sf::Vector2f requisition = guiWindow->GetRequisition();
 		mainWindow = new sf::RenderWindow(sf::VideoMode(resX + requisition.x, resY), 
-			"Particles!", sf::Style::Default,
+			"Particles!", sf::Style::Titlebar|sf::Style::Close, 
 			sf::ContextSettings( 24, 8, 8, 3, 0)); // Set openGL parameters
 		
 		mainWindow->setFramerateLimit(120);
@@ -160,9 +196,14 @@ private:
 		
 		cbCollision->SetActive(particles->particleCollisions);
 		cbStickyness->SetActive(particles->particleStickyness);
-		cbBoundaries->SetActive(particles->particleBoundary);
-		cbGravity->SetActive(particles->particleBoundary);
+		cbGravity->SetActive(particles->linGravity > 0.0);
+		cbBoundCeiling->SetActive(particles->boundCeiling);
+		cbBoundWalls->SetActive(particles->boundWalls);
+		cbBoundFloor->SetActive(particles->boundFloor);
+
 		bhPermCheckButton->SetActive(input->bhPermanent);
+		paintOvrCheckButton->SetActive(input->paintOvr);
+		paintForceCheckButton->SetActive(input->paintForce);
 	}
 
 	void initGUI() {
@@ -186,51 +227,74 @@ private:
 		
 		cbStickyness = sfg::CheckButton::Create("Stickyness");
 		cbStickyness->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonStickyness, this));
-		
-		cbBoundaries = sfg::CheckButton::Create("Boundaries");
-		cbBoundaries->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonBoundaries, this));
-		
+				
 		cbGravity = sfg::CheckButton::Create("Linear Gravity");
 		cbGravity->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonGravity, this));
-
-		bDebug = sfg::Button::Create("Debug");
-		bDebug->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonDebug, this));
 		
-		bClean = sfg::Button::Create("Clean");
-		bClean->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonClean, this));
+		cbBoundCeiling = sfg::CheckButton::Create("Ceiling");
+		cbBoundCeiling->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonBoundCeiling, this));
 		
-		mouseFuncRadio1 = sfg::RadioButton::Create("Erase");
-		mouseFuncRadio2 = sfg::RadioButton::Create("Drag", mouseFuncRadio1->GetGroup());
-		mouseFuncRadio3 = sfg::RadioButton::Create("Paint", mouseFuncRadio1->GetGroup());
-		mouseFuncRadio4 = sfg::RadioButton::Create("Shoot", mouseFuncRadio1->GetGroup());
-		mouseFuncRadio5 = sfg::RadioButton::Create("Place Blackhole", mouseFuncRadio1->GetGroup());
-		mouseFuncRadio6 = sfg::RadioButton::Create("Control Blackhole", mouseFuncRadio1->GetGroup());
-		mouseFuncRadio1->SetActive(true);
-		mouseFuncRadio1->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonMouseSelect, this));
-		mouseFuncRadio2->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonMouseSelect, this));
-		mouseFuncRadio3->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonMouseSelect, this));
-		mouseFuncRadio4->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonMouseSelect, this));
-		mouseFuncRadio5->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonMouseSelect, this));
-		mouseFuncRadio6->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonMouseSelect, this));
-
-		bhPermCheckButton = sfg::CheckButton::Create("Permanent BH");
+		cbBoundWalls = sfg::CheckButton::Create("Walls");
+		cbBoundWalls->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonBoundWalls, this));
+		
+		cbBoundFloor = sfg::CheckButton::Create("Floor");
+		cbBoundFloor->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonBoundFloor, this));
+		
+		bClear = sfg::Button::Create("Clear Screen");
+		bClear->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonClear, this));
+		
+		bStop = sfg::Button::Create("Stop Particles");
+		bStop->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonStop, this));
+		
+		mouseFuncErase = sfg::RadioButton::Create("Erase");
+		mouseFuncDrag = sfg::RadioButton::Create("Drag", mouseFuncErase->GetGroup());
+		mouseFuncPaint = sfg::RadioButton::Create("Paint", mouseFuncErase->GetGroup());
+		mouseFuncShoot = sfg::RadioButton::Create("Shoot", mouseFuncErase->GetGroup());
+		mouseFuncPlaceBH = sfg::RadioButton::Create("Place Blackhole", mouseFuncErase->GetGroup());
+		mouseFuncControlBH = sfg::RadioButton::Create("Control Blackhole", mouseFuncErase->GetGroup());
+		mouseFuncErase->SetActive(true);
+		mouseFuncErase->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonMouseSelect, this));
+		mouseFuncDrag->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonMouseSelect, this));
+		mouseFuncPaint->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonMouseSelect, this));
+		mouseFuncShoot->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonMouseSelect, this));
+		mouseFuncPlaceBH->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonMouseSelect, this));
+		mouseFuncControlBH->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonMouseSelect, this));
+		
+		bhPermCheckButton = sfg::CheckButton::Create("Permanent");
 		bhPermCheckButton->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonPermanence, this));
 		
-		boxSim->Pack(bDebug);
-		boxSim->Pack(bClean);
+		paintOvrCheckButton = sfg::CheckButton::Create("Overwrite");
+		paintOvrCheckButton->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonPaintOvr, this));
+		paintForceCheckButton = sfg::CheckButton::Create("Force");
+		paintForceCheckButton->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonPaintForce, this));
+		
+		auto fixed1 = sfg::Fixed::Create();
+		fixed1->Put(bhPermCheckButton, sf::Vector2f(10.f, 0.f));
+		
+		auto fixed2 = sfg::Fixed::Create();
+		fixed2->Put(paintOvrCheckButton, sf::Vector2f(10.f, 0.f));
+		fixed2->Put(paintForceCheckButton, sf::Vector2f(10.f, 20.f));
+
+		boxSim->Pack(bClear);
+		boxSim->Pack(bStop);
 		boxSim->Pack(label1);
 		boxSim->Pack(cbCollision);
 		boxSim->Pack(cbStickyness);
-		boxSim->Pack(cbBoundaries);
 		boxSim->Pack(cbGravity);
+		boxSim->Pack(cbBoundCeiling);
+		boxSim->Pack(cbBoundWalls);
+		boxSim->Pack(cbBoundFloor);
+		
 		boxMouse->Pack(label2);
-		boxMouse->Pack(mouseFuncRadio1);
-		boxMouse->Pack(mouseFuncRadio2);
-		boxMouse->Pack(mouseFuncRadio3);
-		boxMouse->Pack(mouseFuncRadio4);
-		boxMouse->Pack(mouseFuncRadio5);
-		boxMouse->Pack(mouseFuncRadio6);
-		boxMouse->Pack(bhPermCheckButton);
+		boxMouse->Pack(mouseFuncErase);
+		boxMouse->Pack(mouseFuncDrag);
+		boxMouse->Pack(mouseFuncPaint);
+		boxMouse->Pack(fixed2, false, true);
+		boxMouse->Pack(mouseFuncShoot);
+		boxMouse->Pack(mouseFuncPlaceBH);
+		boxMouse->Pack(mouseFuncControlBH);
+		boxMouse->Pack(fixed1, false, true);
+				
 		boxMain->Pack(boxSim);
 		boxMain->Pack(separatorh);
 		boxMain->Pack(boxMouse);
@@ -243,11 +307,11 @@ private:
 public:
 
 	int resX, resY;
-	double linGravity;
 	sf::RenderWindow* mainWindow;
 	z::Input *input;
+	double linGravity;
 	
-	z::Particles *particles = new Particles(&resX, &resY, &tickTime, linGravity);
+	z::Particles *particles;
 
 	////////////////////
 	// Initialization //
@@ -276,7 +340,9 @@ public:
 		resY = 900;
 		linGravity = 1000.0;
 		
-			// Particle Defaults
+		particles = new Particles(&resX, &resY, &tickTime, linGravity);
+		
+		// Particle Defaults
 		particles->initialNumBalls = 500;
 		particles->defaultBallDia = 10.0;
 		particles->defaultBallSprRate = 50000.f;
@@ -286,7 +352,9 @@ public:
 
 		particles->particleCollisions = true;
 		particles->particleStickyness = true;
-		particles->particleBoundary = true;
+		particles->boundCeiling = true;
+		particles->boundWalls = true;
+		particles->boundFloor = true;
 		
 		// Open file and read values
 		std::ifstream parameterFile("parameters.ini");
@@ -341,12 +409,15 @@ public:
 							if (temp >= 0) particles->defaultBallAttrRad = temp;
 						}
 					}
+					/*
 					else if (paramName == "PARTICLE_BOUNDARY") {
 						if (std::getline(lineSS, param, ' ')) {
 							if (param == "true") particles->particleBoundary = true;
 							else if (param == "false") particles->particleBoundary = false;
 						}
-					}				else if (paramName == "PARTICLE_COLLISIONS") {
+					}
+					*/
+					else if (paramName == "PARTICLE_COLLISIONS") {
 						if (std::getline(lineSS, param, ' ')) {
 							if (param == "true") particles->particleCollisions = true;
 							else if (param == "false") particles->particleCollisions = false;
@@ -373,7 +444,7 @@ public:
 			createParameter << "INITIAL_PARTICLE_DIAMETER=" << particles->defaultBallDia << "\n";
 			createParameter << "INITIAL_PARTICLE_ATTRACT_RATE=" << particles->defaultBallAttrRate/pow(particles->defaultBallDia/2.f, 2.f) << "\n";
 			createParameter << "INITIAL_PARTICLE_ATTRACT_RADIUS=" << particles->defaultBallAttrRad << "\n";
-			createParameter << "PARTICLE_BOUNDARY=" << ((particles->particleBoundary) ? "true" : "false") << "\n";
+			//createParameter << "PARTICLE_BOUNDARY=" << ((particles->particleBoundary) ? "true" : "false") << "\n";
 			createParameter << "PARTICLE_COLLISIONS=" << ((particles->particleCollisions) ? "true" : "false") << "\n";
 			createParameter << "PARTICLE_STICKYNESS=" << ((particles->particleStickyness) ? "true" : "false") << "\n";
 		}
@@ -490,7 +561,7 @@ public:
 			
 			// Timekeeping
 			elapsedTimeP = clockP.restart();
-			tickTimeActual = 0.01f*elapsedTimeP.asSeconds() + tickTimeActual*(1.f - 0.01f);
+			tickTimeActual = TICKTIME_AVGFILT*elapsedTimeP.asSeconds() + tickTimeActual*(1.f - TICKTIME_AVGFILT);
 			tickTimeMin = std::min(DIA_SMALL/(2.f*particles->maxParticleVel), MIN_TICKTIME);
 			if (tickTimeActual > tickTimeMin) {
 				scaleFactor = tickTimeMin/tickTimeActual;

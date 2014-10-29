@@ -9,14 +9,13 @@ int main() {
 	sim.launch();
 }
 // ** To do **
-// Add GUI feedback for black hole state
+// Make sub-checkboxes
 // Fix stickyness parkinsons
 // Fix boundary/no boundary particle deletion
-// Fix paint/shoot patterns
 // Add overwrite checkbox for painting/shooting
 // Add manual speed scaling (percentage)
 // Add 3 classes each of density, size, and stickyness for particles
-// Find bug that causes crashing while adding particles
+// Fix control blackhole position on click
 
 // ** Done **
 // Add black hole creation
@@ -25,3 +24,7 @@ int main() {
 // Add cleanup of inactive black holes
 // Control speed scaling based on fastest particle
 // Make dragged particles retain their velocity
+// Add GUI feedback for black hole state
+// Find bug that causes crashing while adding particles
+// Fix paint/shoot patterns
+// Make boundaries user-selectable
