@@ -16,6 +16,7 @@ private:
 	std::atomic<int>* nComplete = new std::atomic<int>;
 	
 public:
+
 	SpinningBarrier (unsigned int nTemp) {
 		nThreads = nTemp;
 		*nWaiting = 0;

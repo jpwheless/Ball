@@ -59,7 +59,7 @@ public:
 
 	void setSize(int diameter){
 		this->diameter = diameter;
-		radius = diameter/2.f;
+		radius = diameter/2.0;
 		ballShape.setRadius(radius);
 		centerAccel = surfaceAccel*pow(radius, 2);
 	}
