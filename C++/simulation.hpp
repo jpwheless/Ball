@@ -10,45 +10,27 @@
 #include <vector>
 #include <stdlib.h>
 #include <thread>
-#include <mutex>
-#include <condition_variable>
+#include <windows.h>
 
 #include "barrier.hpp"
 #include "particles.hpp"
 #include "input.hpp"
 
-#define DIA_SMALL 10.0
-#define DIA_MED 20.0
-#define DIA_LARGE 40.0
+#define DIA_SMALL 10
+#define DIA_MED 10
+#define DIA_LARGE 10
 
-#define DENSITY_LIGHT 0.25/78.54
-#define DENSITY_MED 1.0/78.54
-#define DENSITY_HEAVY 4.0/78.54
+#define DENSITY_LIGHT 10
+#define DENSITY_MED 10
+#define DENSITY_HEAVY 10
 
 #define STICKY_NONE 10
 #define STICKY_NONE 10
 #define STICKY_NONE 10
 
-#define MAX_TICKTIME 0.0025
-#define TICKTIME_AVGFILT 0.05
-#define SCALEFACT_AVGFILT 0.05
+#define MIN_TICKTIME 0.0025
+#define TICKTIME_AVGFILT 0.05f
 
-#define DEFAULT_RES_X 1500
-#define DEFAULT_RES_Y 900
-
-#define DEFAULT_LIN_GRAV 1000.0
-
-#define DEFAULT_NUM_BALLS 500
-#define DEFAULT_BALL_DIA 10.0
-#define DEFAULT_BALL_SPR_RATE 50000.0
-#define DEFAULT_BALL_REB_EFF 0.9
-#define DEFAULT_BALL_ATTR_RATE 25000.0*pow(DEFAULT_BALL_DIA/2.0, 2.0) // Surface rate to center rate
-#define DEFAULT_BALL_ATTR_RAD 5.0
-
-static std::mutex pauseMutex1;
-static std::mutex pauseMutex2;
-static std::condition_variable pauseCV1;
-static std::condition_variable pauseCV2;
 
 namespace z {
 
@@ -66,14 +48,8 @@ private:
 	sfg::CheckButton::Ptr cbBoundCeiling;
 	sfg::CheckButton::Ptr cbBoundWalls;
 	sfg::CheckButton::Ptr cbBoundFloor;
-	sfg::ToggleButton::Ptr bPause;
 	sfg::Button::Ptr bClear;
 	sfg::Button::Ptr bStop;
-	sfg::ProgressBar::Ptr scaleBar;
-	sfg::Scale::Ptr scaleScale;
-	sfg::Adjustment::Ptr scaleAdjustment;
-	sfg::ComboBox::Ptr densityCombo;
-	sfg::ComboBox::Ptr diameterCombo;
 	
 	sfg::RadioButton::Ptr mouseFuncErase; // Erase
 	sfg::RadioButton::Ptr mouseFuncDrag; // Drag
@@ -85,13 +61,15 @@ private:
 	sfg::CheckButton::Ptr paintOvrCheckButton;
 	sfg::CheckButton::Ptr paintForceCheckButton;
 	
+
+
 	sf::Clock clockP;
 	sf::Time elapsedTimeP;
 	sf::Clock clockD;
 	sf::Time elapsedTimeD;
 	double tickTime, tickTimeActual;
 	double scaleFactor, frameRateP, frameRateD;
-	double tickTimeMax, scaleFactorM;
+	double maxScaleF, tickTimeMin;
 	
 	bool running;
 	bool debugRead;
@@ -103,13 +81,12 @@ private:
 	
 	z::SpinningBarrier rendezvous1 = z::SpinningBarrier(2);
 	z::SpinningBarrier rendezvous2 = z::SpinningBarrier(2);
-			
+	
 	std::atomic<int>* loadBalance1 = new std::atomic<int>;
 	std::atomic<int>* loadBalance2 = new std::atomic<int>;
 	std::atomic<bool>* finishFlag1 = new std::atomic<bool>;
 	std::atomic<bool>* finishFlag2 = new std::atomic<bool>;
-	std::atomic<bool>* threadsPaused = new std::atomic<bool>;
-
+	
 	// SFGUI button functions
 	void buttonCollision() {
 		particles->particleCollisions = cbCollision->IsActive();
@@ -118,7 +95,7 @@ private:
 		particles->particleStickyness = cbStickyness->IsActive();
 	}
 	void buttonGravity() {
-		particles->linGravity = (cbGravity->IsActive())?DEFAULT_LIN_GRAV:0.0;
+		particles->linGravity = (cbGravity->IsActive())?linGravity:0.f;
 	}
 	void buttonBoundCeiling() {
 		particles->boundCeiling = cbBoundCeiling->IsActive();
@@ -135,7 +112,7 @@ private:
 		for (int i = 0; i < particles->ballV.size(); i++) {
 			std::cout << "Particle " << i << ": ";
 			if (particles->ballV[i].alive) {
-				std::cout << "Vel = " << sqrt(pow(particles->ballV[i].xVel, 2.0) + pow(particles->ballV[i].yVel, 2.0));
+				std::cout << "Vel = " << sqrt(pow(particles->ballV[i].xVel, 2.f) + pow(particles->ballV[i].yVel, 2.f));
 				std::cout <<", x = " << particles->ballV[i].x << ", y = " << particles->ballV[i].y << "\n";
 			}
 			else {
@@ -145,18 +122,6 @@ private:
 		std::cout << "\n";
 	}
 	*/
-	void buttonPause() {
-		if (bPause->IsActive()) {
-			*threadsPaused = true;
-			bPause->SetLabel("Resume Sim");
-		}
-		else {
-			*threadsPaused = false;
-			pauseCV1.notify_one();
-			pauseCV2.notify_one();
-			bPause->SetLabel("Pause Sim");
-		}
-	}
 	void buttonClear() {
 		particles->clearParticles();
 	}
@@ -177,8 +142,8 @@ private:
 		input->bhPermanent = bhPermCheckButton->IsActive();
 		if (input->bhPermanent) {
 			particles->bhV[0].active = true;
-			particles->bhV[0].xMove = resX/2.0;
-			particles->bhV[0].yMove = resY/2.0;
+			particles->bhV[0].xMove = resX/2.f;
+			particles->bhV[0].yMove = resY/2.f;
 		}
 		else {
 			particles->bhV[0].active = false;
@@ -202,49 +167,15 @@ private:
 		mouseFuncPaint->SetActive(true);
 		buttonMouseSelect();
 	}
-	void scaleTimeAdj() {
-		scaleFactorM = scaleAdjustment->GetValue();
-	}
-	void diameterComboFunc() {
-		switch(diameterCombo->GetSelectedItem()) {
-			case 0:
-				input->newBallDia = DIA_SMALL;
-				break;
-			case 1:
-				input->newBallDia = DIA_MED;
-				break;
-			case 2:
-				input->newBallDia = DIA_LARGE;
-				break;
-		}
-	}
-	void densityComboFunc() {
-		switch(diameterCombo->GetSelectedItem()) {
-			case 0:
-				input->newBallDia = DENSITY_LIGHT;
-				break;
-			case 1:
-				input->newBallDia = DENSITY_MED;
-				break;
-			case 2:
-				input->newBallDia = DENSITY_HEAVY;
-				break;
-		}
-	}
 	
 	// Call after initGUI().
 	void initSFML() {
 		sf::Vector2f requisition = guiWindow->GetRequisition();
-		{
-			int temp = requisition.y;
-			requisition.y = std::max(resY, temp);
-		}
-		guiWindow->SetRequisition(requisition);
 		mainWindow = new sf::RenderWindow(sf::VideoMode(resX + requisition.x, resY), 
 			"Particles!", sf::Style::Titlebar|sf::Style::Close, 
 			sf::ContextSettings( 24, 8, 8, 3, 0)); // Set openGL parameters
 		
-		//mainWindow->setFramerateLimit(60);
+		mainWindow->setFramerateLimit(120);
 		mainWindow->setVerticalSyncEnabled(true);
 
 		
@@ -273,34 +204,22 @@ private:
 		bhPermCheckButton->SetActive(input->bhPermanent);
 		paintOvrCheckButton->SetActive(input->paintOvr);
 		paintForceCheckButton->SetActive(input->paintForce);
-		
-		scaleAdjustment->SetValue(1.0);
 	}
 
 	void initGUI() {
 		guiWindow = sfg::Window::Create();
 		guiWindow->SetStyle(guiWindow->GetStyle() ^ sfg::Window::TITLEBAR);
 		guiWindow->SetStyle(guiWindow->GetStyle() ^ sfg::Window::RESIZE);
-		auto boxMain = sfg::Box::Create(sfg::Box::Orientation::VERTICAL, 5.0);
-		auto boxSim = sfg::Box::Create(sfg::Box::Orientation::VERTICAL, 5.0);
-		auto boxParam = sfg::Box::Create(sfg::Box::Orientation::VERTICAL, 5.0);
-		auto boxMouse = sfg::Box::Create(sfg::Box::Orientation::VERTICAL, 5.0);
+		auto boxMain = sfg::Box::Create(sfg::Box::Orientation::VERTICAL, 5.f);
+		auto boxSim = sfg::Box::Create(sfg::Box::Orientation::VERTICAL, 5.f);
+		auto boxMouse = sfg::Box::Create(sfg::Box::Orientation::VERTICAL, 5.f);
 		
 		auto label1 = sfg::Label::Create();
-		label1->SetText("Sim Parameters");
 		auto label2 = sfg::Label::Create();
+		label1->SetText("Sim Parameters");
 		label2->SetText("Mouse Function");
-		auto label3 = sfg::Label::Create();
-		label3->SetText("Time Scaling (Actual)");
-		auto label4 = sfg::Label::Create();
-		label4->SetText("Time Scaling (Max)");
-		auto instructions = sfg::Label::Create();
-		instructions->SetText("Use the scroll wheel along with CTRL or SHIFT to modify mouse functions.");
-		instructions->SetLineWrap(true);
-
-		auto separatorh1 = sfg::Separator::Create(sfg::Separator::Orientation::HORIZONTAL);
-		auto separatorh2 = sfg::Separator::Create(sfg::Separator::Orientation::HORIZONTAL);
-		auto separatorh3 = sfg::Separator::Create(sfg::Separator::Orientation::HORIZONTAL);
+		
+		auto separatorh = sfg::Separator::Create(sfg::Separator::Orientation::HORIZONTAL);
 		
 		// Button functions
 		cbCollision = sfg::CheckButton::Create("Collision");
@@ -321,25 +240,11 @@ private:
 		cbBoundFloor = sfg::CheckButton::Create("Floor");
 		cbBoundFloor->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonBoundFloor, this));
 		
-		bPause = sfg::ToggleButton::Create("Pause Sim");
-		bPause->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonPause, this));
-		
 		bClear = sfg::Button::Create("Clear Screen");
 		bClear->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonClear, this));
 		
 		bStop = sfg::Button::Create("Stop Particles");
 		bStop->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonStop, this));
-
-		scaleBar = sfg::ProgressBar::Create();
-		scaleScale = sfg::Scale::Create(sfg::Scale::Orientation::HORIZONTAL);
-		scaleScale->SetRequisition(sf::Vector2f(0.0, 20.0));
-		
-		scaleAdjustment = scaleScale->GetAdjustment();
-		scaleAdjustment->SetLower(0.01);
-		scaleAdjustment->SetUpper(1.0);
-		scaleAdjustment->SetMinorStep(0.01);
-		scaleAdjustment->SetMajorStep(0.10);
-		scaleAdjustment->GetSignal(sfg::Adjustment::OnChange).Connect(std::bind(&z::Simulation::scaleTimeAdj, this));
 		
 		mouseFuncErase = sfg::RadioButton::Create("Erase");
 		mouseFuncDrag = sfg::RadioButton::Create("Drag", mouseFuncErase->GetGroup());
@@ -363,59 +268,36 @@ private:
 		paintForceCheckButton = sfg::CheckButton::Create("Force");
 		paintForceCheckButton->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonPaintForce, this));
 		
-		densityCombo = sfg::ComboBox::Create();
-		densityCombo->AppendItem("Low Density");
-		densityCombo->AppendItem("Med Density");
-		densityCombo->AppendItem("High Density");
-		diameterCombo = sfg::ComboBox::Create();
-		diameterCombo->AppendItem("Diameter = 10");
-		diameterCombo->AppendItem("Diameter = 20");
-		diameterCombo->AppendItem("Diameter = 40");
-		
-		densityCombo->GetSignal(sfg::ComboBox::OnSelect).Connect(std::bind(&z::Simulation::densityComboFunc, this));
-		diameterCombo->GetSignal(sfg::ComboBox::OnSelect).Connect(std::bind(&z::Simulation::diameterCombo, this));
-		
 		auto fixed1 = sfg::Fixed::Create();
-		fixed1->Put(paintOvrCheckButton, sf::Vector2f(10.0, 0.0));
-		fixed1->Put(paintForceCheckButton, sf::Vector2f(10.0, 20.0));
+		fixed1->Put(bhPermCheckButton, sf::Vector2f(10.f, 0.f));
 		
 		auto fixed2 = sfg::Fixed::Create();
-		fixed2->Put(bhPermCheckButton, sf::Vector2f(10.0, 0.0));
-		
-		boxSim->Pack(bPause);
-		boxSim->Pack(label3);
-		boxSim->Pack(scaleBar);
-		boxSim->Pack(label4);
-		boxSim->Pack(scaleScale);
+		fixed2->Put(paintOvrCheckButton, sf::Vector2f(10.f, 0.f));
+		fixed2->Put(paintForceCheckButton, sf::Vector2f(10.f, 20.f));
+
 		boxSim->Pack(bClear);
 		boxSim->Pack(bStop);
-		boxParam->Pack(label1);
-		boxParam->Pack(cbCollision);
-		boxParam->Pack(cbStickyness);
-		boxParam->Pack(cbGravity);
-		boxParam->Pack(cbBoundCeiling);
-		boxParam->Pack(cbBoundWalls);
-		boxParam->Pack(cbBoundFloor);
-				
+		boxSim->Pack(label1);
+		boxSim->Pack(cbCollision);
+		boxSim->Pack(cbStickyness);
+		boxSim->Pack(cbGravity);
+		boxSim->Pack(cbBoundCeiling);
+		boxSim->Pack(cbBoundWalls);
+		boxSim->Pack(cbBoundFloor);
+		
 		boxMouse->Pack(label2);
-		boxMouse->Pack(diameterCombo);
-		boxMouse->Pack(densityCombo);
 		boxMouse->Pack(mouseFuncErase);
 		boxMouse->Pack(mouseFuncDrag);
 		boxMouse->Pack(mouseFuncPaint);
-		boxMouse->Pack(fixed1, false, true);
+		boxMouse->Pack(fixed2, false, true);
 		boxMouse->Pack(mouseFuncShoot);
 		boxMouse->Pack(mouseFuncPlaceBH);
 		boxMouse->Pack(mouseFuncControlBH);
-		boxMouse->Pack(fixed2, false, true);
+		boxMouse->Pack(fixed1, false, true);
 				
-		boxMain->Pack(boxSim, false, true);
-		boxMain->Pack(separatorh1, false, true);
-		boxMain->Pack(boxParam, false, true);
-		boxMain->Pack(separatorh2, false, true);
-		boxMain->Pack(boxMouse, false, true);
-		boxMain->Pack(separatorh3, false, true);
-		boxMain->Pack(instructions, false, true);
+		boxMain->Pack(boxSim);
+		boxMain->Pack(separatorh);
+		boxMain->Pack(boxMouse);
 		
 		guiWindow->Add(boxMain);
 		
@@ -423,9 +305,11 @@ private:
 	}
 		
 public:
+
 	int resX, resY;
 	sf::RenderWindow* mainWindow;
 	z::Input *input;
+	double linGravity;
 	
 	z::Particles *particles;
 
@@ -452,20 +336,19 @@ public:
 	
 	void loadParams() {
 		// Default simulation parameters
-		resX = DEFAULT_RES_X;
-		resY = DEFAULT_RES_Y;
+		resX = 1500;
+		resY = 900;
+		linGravity = 1000.0;
 		
-		particles = new Particles(&resX, &resY, &tickTime, DEFAULT_LIN_GRAV);
+		particles = new Particles(&resX, &resY, &tickTime, linGravity);
 		
-		initGUI();
-		initSFML();
-																			
-		input->newBallDia = DIA_SMALL;
-		input->newBallDensity = DENSITY_LIGHT;
-		input->newBallSprRate = DEFAULT_BALL_SPR_RATE;
-		input->newBallRebEff = DEFAULT_BALL_REB_EFF;
-		input->newBallAttrRate = DEFAULT_BALL_ATTR_RATE;
-		input->newBallAttrRad = DEFAULT_BALL_ATTR_RAD;
+		// Particle Defaults
+		particles->initialNumBalls = 500;
+		particles->defaultBallDia = 10.0;
+		particles->defaultBallSprRate = 50000.f;
+		particles->defaultBallebEff = 0.9;
+		particles->defaultBallAttrRate = 25000.f * pow(particles->defaultBallDia/2.f, 2.f); // Surface rate to center rate
+		particles->defaultBallAttrRad = 5.f;	
 
 		particles->particleCollisions = true;
 		particles->particleStickyness = true;
@@ -473,10 +356,6 @@ public:
 		particles->boundWalls = true;
 		particles->boundFloor = true;
 		
-		particles -> createInitBalls(DEFAULT_NUM_BALLS, DIA_SMALL, DENSITY_LIGHT, DEFAULT_BALL_SPR_RATE,
-																	DEFAULT_BALL_REB_EFF, DEFAULT_BALL_ATTR_RATE, DEFAULT_BALL_ATTR_RAD);
-		
-		/*
 		// Open file and read values
 		std::ifstream parameterFile("parameters.ini");
 		if (parameterFile.is_open()) { // Read parameter file
@@ -516,7 +395,7 @@ public:
 					else if (paramName == "INITIAL_PARTICLE_DIAMETER") {
 						if (std::getline(lineSS, param, ' ')) {
 							double temp = stof(param);
-							if (temp >= 1.0) particles->defaultBallDia = temp;
+							if (temp >= 1.f) particles->defaultBallDia = temp;
 						}
 					}
 					else if (paramName == "INITIAL_PARTICLE_ATTRACT_RATE") {
@@ -530,12 +409,14 @@ public:
 							if (temp >= 0) particles->defaultBallAttrRad = temp;
 						}
 					}
+					/*
 					else if (paramName == "PARTICLE_BOUNDARY") {
 						if (std::getline(lineSS, param, ' ')) {
 							if (param == "true") particles->particleBoundary = true;
 							else if (param == "false") particles->particleBoundary = false;
 						}
 					}
+					*/
 					else if (paramName == "PARTICLE_COLLISIONS") {
 						if (std::getline(lineSS, param, ' ')) {
 							if (param == "true") particles->particleCollisions = true;
@@ -570,24 +451,18 @@ public:
 		createParameter.close();
 		
 		particles->createInitBalls();
-		*/
 	}
 		
 	void launch() {
-		loadParams();
-	
 		running = true;
-		*threadsPaused = false;
 		drawThread = new std::thread(&Simulation::draw, this);
 		calcPhysicsThread1 = new std::thread(&Simulation::calcPhysics1, this);
 		calcPhysicsThread2 = new std::thread(&Simulation::calcPhysics2, this);
 		
-		*loadBalance1 = particles->ballV.size() / 3.0;
-		*loadBalance2 = particles->ballV.size() / 2.0;
+		*loadBalance1 = particles->ballV.size() / 3.f;
+		*loadBalance2 = particles->ballV.size() / 2.f;
 		
 		tickTime = 0.002; // Jump start to avoid physics glitches
-		tickTimeActual = tickTime;
-		tickTimeMax = MAX_TICKTIME;
 		frameRateP = 500;
 		frameRateD = 60;
 						
@@ -599,7 +474,10 @@ public:
 	/////////////
 	// Threads //
 	/////////////
-	void draw() {			
+	void draw() {	
+		initGUI();
+		initSFML();
+		
 		sf::Vertex menuDivider[] = {
 			sf::Vertex(sf::Vector2f(resX, 0)),
 			sf::Vertex(sf::Vector2f(resX, resY))
@@ -608,7 +486,7 @@ public:
 		while (mainWindow->isOpen()) {
 		
 			elapsedTimeD = clockD.restart();
-			frameRateD = 0.05*(1.0/elapsedTimeD.asSeconds()) + frameRateD*(1.0 - 0.05);
+			frameRateD = 0.05f*(1.f/elapsedTimeD.asSeconds()) + frameRateD*(1.f - 0.05f);
 
 			// Handle events
 			sf::Event event;
@@ -640,7 +518,7 @@ public:
 			}
 						
 			input->update();
-			guiWindow->Update(1.0);
+			guiWindow->Update(1.f);
 			mainWindow->clear();
 			
 			
@@ -659,9 +537,6 @@ public:
 											+ "\n" + std::to_string((int)particles->maxParticleVel));
 				mainWindow->draw(fps);
 			}
-			
-			scaleBar->SetFraction(scaleFactor);
-			
 			sfguiW.Display(*mainWindow);
 			
 			// Display drawn objects
@@ -671,12 +546,8 @@ public:
 		
 	// Handle first portion of particles
 	void calcPhysics1() {
-		std::unique_lock<std::mutex> lock1(pauseMutex1);
+
 		while(running){
-			if (*threadsPaused) {
-				pauseCV1.wait(lock1);
-				clockP.restart();
-			}
 		
 			*finishFlag1 = false;
 			particles->collisonUpdate(0, *loadBalance1);
@@ -689,21 +560,18 @@ public:
 			*finishFlag2 = true;
 			
 			// Timekeeping
-			{
-				elapsedTimeP = clockP.restart();
-				
-				tickTimeActual = TICKTIME_AVGFILT*elapsedTimeP.asSeconds() + tickTimeActual*(1.0 - TICKTIME_AVGFILT);
-				//double tempMax =  std::min(DIA_SMALL/(2.0*particles->maxParticleVel), MAX_TICKTIME);
-				//if (tickTimeMax > tempMax) tickTimeMax = tempMax;
-				//else tickTimeMax = 0.000005*tickTimeActual*tempMax + tickTimeMax*(1.0 - 0.000005*tickTimeActual);
-				tickTimeMax = std::min(DIA_SMALL/(2.0*particles->maxParticleVel), MAX_TICKTIME);
-				
-				scaleFactor = std::min(tickTimeMax/tickTimeActual, scaleFactorM);
-				
-				tickTime = tickTimeActual*scaleFactor;
-				
-				frameRateP = 1.0/tickTime;
+			elapsedTimeP = clockP.restart();
+			tickTimeActual = TICKTIME_AVGFILT*elapsedTimeP.asSeconds() + tickTimeActual*(1.f - TICKTIME_AVGFILT);
+			tickTimeMin = std::min(DIA_SMALL/(2.f*particles->maxParticleVel), MIN_TICKTIME);
+			if (tickTimeActual > tickTimeMin) {
+				scaleFactor = tickTimeMin/tickTimeActual;
+				tickTime = tickTimeMin;
 			}
+			else {
+				scaleFactor = 1.0;
+				tickTime = tickTimeActual;
+			}
+			frameRateP = 1.f/tickTime;
 						
 			rendezvous2.wait();
 		}
@@ -711,12 +579,7 @@ public:
 	
 	// Handle second portion of particles
 	void calcPhysics2() {
-		std::unique_lock<std::mutex> lock2(pauseMutex2);
 		while(running){
-			if (*threadsPaused) {
-				pauseCV2.wait(lock2);
-			}
-		
 			particles->collisonUpdate(*loadBalance1, particles->size());
 			
 			// If thread #1 has finished first, then increase its load
@@ -738,6 +601,7 @@ public:
 	}
 
 };
+
 }
 
 #endif

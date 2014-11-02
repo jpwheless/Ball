@@ -1,6 +1,7 @@
 #ifndef BALL_HPP
 #define BALL_HPP
 
+
 #define DRAG_FILT 10.0
 
 namespace z {
@@ -32,7 +33,7 @@ public:
 		x = y = xVel = yVel = 0;
 		setSize(10.0);
 		setColor(255, 255, 255);
-		mass = 1.0;
+		mass = 1.f;
 	}
 
 	void update() {
@@ -82,20 +83,28 @@ public:
 		ballShape.setPosition(x - radius, y - radius);
 	}
 	
-	void setSize(int diameter){
+	void setSize( int diameter){
 		this->diameter = diameter;
-		radius = diameter / 2.0;
+		radius = diameter / 2.f;
 		ballShape.setRadius(radius);
-	}
-	
-	void setMass(double density) {
-		double area = 3.14159265359*pow(radius, 2.0);
-		mass = area*density;
 	}
 	
 	void setColor(int r, int g, int b) {
 		ballShape.setFillColor(sf::Color(r, g, b)); 
 	}
+		
+	/*
+	void setTexture( sf::Texture &texture, int ballDia, int r, int g, int b ){
+		diameter = ballDia;
+		radius = ballDia / 2.f;
+		
+		sprite.setOrigin(radius, radius);
+		texture.setSmooth(true);
+		sprite.setTexture(texture);
+		sprite.setScale(diameter/TEXTURE_DIA, diameter/TEXTURE_DIA);
+		sprite.setColor(sf::Color(r, g, b));
+	}
+	*/
 };
 
 bool *Ball::boundCeiling;
