@@ -38,7 +38,7 @@
 
 #define DEFAULT_LIN_GRAV 1000.0
 
-#define DEFAULT_NUM_BALLS 500
+#define DEFAULT_NUM_BALLS 1000
 #define DEFAULT_BALL_DIA 10.0
 #define DEFAULT_BALL_SPR_RATE 50000.0
 #define DEFAULT_BALL_REB_EFF 0.9
@@ -247,8 +247,7 @@ private:
 		//mainWindow->setFramerateLimit(60);
 		mainWindow->setVerticalSyncEnabled(true);
 
-		
-		input = new z::Input(particles, mainWindow);
+		input->mainWindow = mainWindow;
 		
 		// Debugging/fps readout
 		// Load font from system font folder directory
@@ -456,9 +455,8 @@ public:
 		resY = DEFAULT_RES_Y;
 		
 		particles = new Particles(&resX, &resY, &tickTime, DEFAULT_LIN_GRAV);
-		
-		initGUI();
-		initSFML();
+		input = new z::Input(particles);
+
 																			
 		input->newBallDia = DIA_SMALL;
 		input->newBallDensity = DENSITY_LIGHT;
@@ -573,9 +571,7 @@ public:
 		*/
 	}
 		
-	void launch() {
-		loadParams();
-	
+	void launch() {	
 		running = true;
 		*threadsPaused = false;
 		drawThread = new std::thread(&Simulation::draw, this);
@@ -599,7 +595,10 @@ public:
 	/////////////
 	// Threads //
 	/////////////
-	void draw() {			
+	void draw() {
+		initGUI();
+		initSFML();
+		
 		sf::Vertex menuDivider[] = {
 			sf::Vertex(sf::Vector2f(resX, 0)),
 			sf::Vertex(sf::Vector2f(resX, resY))

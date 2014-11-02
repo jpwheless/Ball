@@ -59,9 +59,8 @@ public:
 	
 	sf::CircleShape mouseCircle;
 	
-	Input(z::Particles *p, sf::RenderWindow *mW) {
+	Input(z::Particles *p) {
 		particles = p;
-		mainWindow = mW;
 		mouseMode = 1;
 		mouseRad = MIN_RAD;
 		shootAng = PIovr2;
