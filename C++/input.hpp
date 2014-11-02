@@ -4,7 +4,7 @@
 #define PIovr8 0.39269908169
 #define PIovr4 0.78539816339
 #define RAD_TICK 5
-#define MAX_RAD 100
+#define MAX_RAD 200
 #define MIN_RAD 5
 #define VEL_TICK 200
 #define MAX_VEL 8000
@@ -38,6 +38,10 @@ public:
 	double shootVel;
 	double bhRad;
 	double bhGrav;
+	
+	double newBallDia, newBallSprRate;
+	double newBallRebEff, newBallAttrRate;
+	double newBallAttrRad, newBallDensity;
 	
 	InteractionSetting bhIinteract;
 	
@@ -117,56 +121,50 @@ public:
 					if (paintOvr) {
 						if (mouseReleased && mouseX <= *resX) {
 							particles->deactivateCloud(mouseX, mouseY, mouseRad);
-							particles->createCloud(mouseX, mouseY, mouseRad, 0, 0,
-																			particles->defaultBallDia, particles->defaultBallSprRate,
-																			particles->defaultBallebEff, particles->defaultBallAttrRate,
-																			particles->defaultBallAttrRad, false, false);
+							particles->createCloud(mouseX, mouseY, mouseRad, 0, 0, newBallDia, newBallDensity, newBallSprRate,
+																			newBallRebEff, newBallAttrRate, newBallAttrRad, false, false);
 						}
 					}
 					else if (paintForce) {
 						if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && mouseX <= *resX) { 
-							particles->createCloud(mouseX, mouseY, mouseRad, 0, 0,
-																			particles->defaultBallDia, particles->defaultBallSprRate,
-																			particles->defaultBallebEff, particles->defaultBallAttrRate,
-																			particles->defaultBallAttrRad, false, true);
+							particles->createCloud(mouseX, mouseY, mouseRad, 0, 0, newBallDia, newBallDensity, newBallSprRate,
+																			newBallRebEff, newBallAttrRate, newBallAttrRad, false, false);
 						}
 					}
 					else if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && mouseX <= *resX) {
-						particles->createCloud(mouseX, mouseY, mouseRad, 0, 0,
-																		particles->defaultBallDia, particles->defaultBallSprRate,
-																		particles->defaultBallebEff, particles->defaultBallAttrRate,
-																		particles->defaultBallAttrRad, false, false);
+						particles->createCloud(mouseX, mouseY, mouseRad, 0, 0, newBallDia, newBallDensity, newBallSprRate,
+																		newBallRebEff, newBallAttrRate, newBallAttrRad, false, false);
 					}
 					break;
 				case 4: // Shoot
 					if (mouseReleased && mouseX <= *resX) {
 						particles->deactivateCloud(mouseX, mouseY, mouseRad);
 						particles->createCloud(mouseX, mouseY, mouseRad, shootVel, shootAng,
-																		particles->defaultBallDia, particles->defaultBallSprRate,
-																		particles->defaultBallebEff, particles->defaultBallAttrRate,
-																		particles->defaultBallAttrRad, false, false);
+																		newBallDia, newBallDensity, newBallSprRate, newBallRebEff, 
+																		newBallAttrRate, newBallAttrRad, false, false);
 					}
 					break;
 				case 5: // Place Blackhole
 					if (mouseReleased && mouseX <= *resX) {
-						particles->createBH(mouseX, mouseY, bhGrav, bhRad*2.f, bhIinteract);
+						particles->createBH(mouseX, mouseY, bhGrav, bhRad*2.0, bhIinteract);
 					}
 					break;
 				case 6: // Control Blackhole
 					if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && mouseX <= *resX) {
 						if (mousePressed && !bhPermanent) {
-							particles->bhV[0].x = mouseX;
-							particles->bhV[0].y = mouseY;
+							particles->bhV[0].setPosition(mouseX, mouseY);
 							particles->bhV[0].active = true;
 						}
-						particles->bhV[0].xMove = mouseX;
-						particles->bhV[0].yMove = mouseY;
+						else {
+							particles->bhV[0].xMove = mouseX;
+							particles->bhV[0].yMove = mouseY;
+						}
 					}
 					else if (mouseReleased) {
 						if (!bhPermanent) particles->bhV[0].active = false;
 						else {
-							particles->bhV[0].xMove = *resX/2.f;
-							particles->bhV[0].yMove = *resY/2.f;
+							particles->bhV[0].xMove = *resX/2.0;
+							particles->bhV[0].yMove = *resY/2.0;
 						}
 					}
 					break;
@@ -195,7 +193,7 @@ public:
 					if (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) || 
 							sf::Keyboard::isKeyPressed(sf::Keyboard::RControl)) {
 						shootAng -= event.mouseWheel.delta*ANG_TICK;
-						shootAng = (shootAng < 0.f)?(PI2):((shootAng > PI2)?0.f:shootAng);
+						shootAng = (shootAng < 0.0)?(PI2):((shootAng > PI2)?0.0:shootAng);
 					}
 					else if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) || 
 							sf::Keyboard::isKeyPressed(sf::Keyboard::RShift)) {
@@ -224,7 +222,7 @@ public:
 						particles->bhV[0].radius += event.mouseWheel.delta*BHRAD_TICK;
 						particles->bhV[0].radius = (particles->bhV[0].radius < MIN_BHRAD)?(MIN_BHRAD):
 								((particles->bhV[0].radius > MAX_BHRAD)?MAX_BHRAD:particles->bhV[0].radius);
-						particles->bhV[0].setSize(particles->bhV[0].radius*2.f);
+						particles->bhV[0].setSize(particles->bhV[0].radius*2.0);
 					}
 					else {
 						particles->bhV[0].surfaceAccel -= event.mouseWheel.delta*GRAV_TICK;

@@ -26,17 +26,7 @@ public:
 	bool boundCeiling;
 	bool boundWalls;
 	bool boundFloor;
-	
-	int initialNumBalls;
-	double defaultBallDia;
-	double defaultBallSprRate;
-	double defaultBallebEff;
-	double defaultBallAttrRate;
-	double defaultBallAttrRad;
-	
-	// Add small, medium, large
-	// Add dense, regular, light
-	
+		
 	double prevX;
 	double prevY;
 	
@@ -51,11 +41,11 @@ public:
 	
 	double maxParticleVel;
 	
-	Particles(int *resXT, int *resYT, double *tickTimeT, double linGravity) {
+	Particles(int *resXT, int *resYT, double *tickTimeT, double linGravityT) {
 		resX = resXT;
 		resY = resYT;
 		tickTime = tickTimeT;
-		linGravity = linGravity;
+		linGravity = linGravityT;
 		
 		BlackHole::tickTime = tickTime;
 		
@@ -65,7 +55,6 @@ public:
 		Ball::tickTime = tickTimeT;
 		Ball::resX = resXT;
 		Ball::resY = resYT;
-
 
 		ballV.reserve(MAX_PARTICLES);
 		bhV.reserve(MAX_BH);
@@ -83,16 +72,18 @@ public:
 	}
 
 	// Populate the window with balls in random locations
-	void createInitBalls() {
+	void createInitBalls(int numBalls, double ballDia, double ballDensity, double springRate,
+											double rebEff, double attrRate, double attrRad) {
 		// Create number of starting balls at random locations
-		for ( int i = 0; i < initialNumBalls; i++ ) {
+		for ( int i = 0; i < numBalls; i++ ) {
 			z::Ball ball;
-			ball.setSize(defaultBallDia);
+			ball.setSize(ballDia);
+			ball.setMass(ballDensity);
 			ball.setColor(rand()%255, rand()%255, rand()%255);
-			ball.springRate = defaultBallSprRate;
-			ball.reboundEfficiency = defaultBallebEff;
-			ball.attrRad = defaultBallAttrRad;
-			ball.attrRate = defaultBallAttrRate;
+			ball.springRate = springRate;
+			ball.reboundEfficiency = rebEff;
+			ball.attrRate = attrRate;
+			ball.attrRad = attrRad;
 			
 			double xPos, yPos;
 			int tryCount = 0;
@@ -104,7 +95,7 @@ public:
 				yPos = randDouble(ball.radius, *resY - ball.radius);
 				collision = false;
 				for (int j = 0; j < i; j++) {
-					if (sqrt(pow(xPos - ballV[j].x, 2.0) + pow(yPos - ballV[j].y, 2.0)) <= 2.f*defaultBallDia)
+					if (sqrt(pow(xPos - ballV[j].x, 2.0) + pow(yPos - ballV[j].y, 2.0)) <= 2.f*ballDia)
 						collision = true;
 				}
 				tryCount++;
@@ -247,7 +238,7 @@ public:
 		
 	// Create a spherical cloud of particles
 	void createCloud(double x, double y, double rad, double vel, double dir,
-										double ballDia, double springRate, double rebEff,
+										double ballDia, double ballDensity, double springRate, double rebEff,
 										double attrRate, double attrRad, bool stationary, bool ovrWrite) {
 		std::vector<int> list;
 		double ballRad = ballDia/2.f;
@@ -262,14 +253,14 @@ public:
 			if (j%2) xIt = x + ballDia*cos(PI60);
 			else xIt = x;
 			while (sqrt(pow(xIt - x, 2.0) + pow(yIt - y, 2.0)) < rad) {
-				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, springRate, rebEff, attrRate, attrRad, true, ovrWrite);
+				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, ballDensity, springRate, rebEff, attrRate, attrRad, true, ovrWrite);
 				if (tempListPos >= 0) list.push_back(tempListPos);
 				xIt += ballDia;
 			}
 			if (j%2) xIt = x - ballDia*cos(PI60);
 			else xIt = x - ballDia;
 			while (sqrt(pow(xIt - x, 2.0) + pow(yIt - y, 2.0)) < rad) {
-				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, springRate, rebEff, attrRate, attrRad, true, ovrWrite);
+				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, ballDensity, springRate, rebEff, attrRate, attrRad, true, ovrWrite);
 				if (tempListPos >= 0) list.push_back(tempListPos);
 				xIt -= ballDia;
 			}
@@ -288,7 +279,7 @@ public:
 
 
 	int createParticle(double xPos, double yPos, double vel, double dir,
-											double ballDia, double springRate, double rebEff,
+											double ballDia, double ballDensity, double springRate, double rebEff,
 											double attrRate, double attrRad, bool stationary, bool ovrWrite) {
 
 		double radius = ballDia/2.f;
@@ -299,7 +290,14 @@ public:
 		else if (!ovrWrite) {
 			for (int j = 0; j < ballV.size(); j++) {
 				if (ballV[j].alive) {
-					if (sqrt(pow(xPos - ballV[j].x, 2.0) + pow(yPos - ballV[j].y, 2.0)) + 0.001 < ballDia) {
+					if (sqrt(pow(xPos - ballV[j].x, 2.0) + pow(yPos - ballV[j].y, 2.0)) + 0.001 < radius + ballV[j].radius) {
+						collision = true;
+					}
+				}
+			}
+			for (int k = 0; k < bhV.size(); k++) {
+				if (bhV[k].active) {
+					if (sqrt(pow(xPos - bhV[k].x, 2.0) + pow(yPos - bhV[k].y, 2.0)) + 0.001 < radius + bhV[k].radius) {
 						collision = true;
 					}
 				}
@@ -318,6 +316,7 @@ public:
 			
 			if (inactiveBall) {
 				ballV[i].setSize(ballDia);
+				ballV[i].setMass(ballDensity);
 				ballV[i].setColor(rand()%255, rand()%255, rand()%255);
 				ballV[i].springRate = springRate;
 				ballV[i].reboundEfficiency = rebEff;
@@ -331,6 +330,7 @@ public:
 			else {
 				z::Ball ball;
 				ball.setSize(ballDia);
+				ball.setMass(ballDensity);
 				ball.setColor(std::rand()%255, std::rand()%255, std::rand()%255);
 				ball.springRate = springRate;
 				ball.reboundEfficiency = rebEff;
@@ -410,12 +410,35 @@ public:
 							
 							double centerDist = ballV[i].radius + ballV[j].radius;
 							
+							
 							// Check for particle collision
 							if (dist < centerDist) { 
 								double force = ((ballV[i].springRate + ballV[i].springRate)/2.f)
 															*(centerDist - dist)*(*tickTime);
 								double forceVect;
 								
+								// If relative velocity is higher than x, then average the two velocities
+								// If ball centers collide, then average their momentum
+								//(((ballV[i].x < ballV[j].x && ballV[i].xVel < ballV[j].xVel) ||
+								//		(ballV[i].x > ballV[j].x && ballV[i].xVel > ballV[j].xVel))
+								if (dist < centerDist*0.2) {
+									if((ballV[i].x < ballV[j].x && ballV[i].xVel > ballV[j].xVel) ||
+										(ballV[i].x > ballV[j].x && ballV[i].xVel < ballV[j].xVel)) {
+										
+										double momentum = (ballV[i].xVel*ballV[i].mass + ballV[j].xVel*ballV[j].mass)/2.0;
+										
+										ballV[i].xVel = momentum/ballV[i].mass;
+										ballV[j].xVel = momentum/ballV[j].mass;
+									}
+									if((ballV[i].y < ballV[j].y && ballV[i].yVel > ballV[j].yVel) ||
+										(ballV[i].y > ballV[j].y && ballV[i].yVel < ballV[j].yVel)) {
+										
+										double momentum = (ballV[i].yVel*ballV[i].mass + ballV[j].yVel*ballV[j].mass)/2.0;
+										
+										ballV[i].yVel = momentum/ballV[i].mass;
+										ballV[j].yVel = momentum/ballV[j].mass;
+									}									
+								}
 								forceVect = ((ballV[i].x - ballV[j].x)/dist)*force*
 									(((ballV[i].x < ballV[j].x && ballV[i].xVel < ballV[j].xVel) ||
 									(ballV[i].x > ballV[j].x && ballV[i].xVel > ballV[j].xVel)) ? ballV[i].reboundEfficiency : 1.0);
@@ -452,62 +475,63 @@ public:
 						}
 					}
 				}
-				
-				// Particle-boundary collisions
-				if (boundWalls) {
-					if (ballV[i].x > *resX - ballV[i].radius) {
-						// Ball linear spring rate w/ wall rebound efficiency
-						ballV[i].xVel += ((*resX - ballV[i].radius) - ballV[i].x)*ballV[i].springRate*
-						((ballV[i].xVel < 0) ? ballV[i].reboundEfficiency : 1.0)*(*tickTime);
-					}
-					else if (ballV[i].x < ballV[i].radius) {    
-						ballV[i].xVel += (ballV[i].radius - ballV[i].x)*ballV[i].springRate*
-						((ballV[i].xVel > 0) ? ballV[i].reboundEfficiency : 1.0)*(*tickTime);
-					}
-				}
-				if (ballV[i].y > *resY - ballV[i].radius) {
-					if (boundFloor) {
-						ballV[i].yVel += ((*resY - ballV[i].radius) - ballV[i].y)*ballV[i].springRate*
-						((ballV[i].yVel < 0) ? ballV[i].reboundEfficiency : 1.0)*(*tickTime);
-					}
-				}
-				else if (ballV[i].y < ballV[i].radius) {
-					if (boundCeiling) {
-						ballV[i].yVel += (ballV[i].radius - ballV[i].y)*ballV[i].springRate*
-						((ballV[i].yVel > 0) ? ballV[i].reboundEfficiency : 1.0)*(*tickTime);
-					}
-				}
-				else {
-					// Linear gravity
-					ballV[i].yVel += (linGravity)*(*tickTime);
-				}
-				
-				// Black hole effects
-				for (int k = 0; k < bhVsize; k++) {
-					if (bhV[k].active == true) {
-						double term;
-						double dist = sqrt(pow(ballV[i].x - bhV[k].x, 2.f) + pow(ballV[i].y - bhV[k].y, 2.f));
-						if (bhV[k].interact == COLLISION && dist < ballV[i].radius + bhV[k].radius) { 
-							term = ballV[i].springRate*(ballV[i].radius + bhV[k].radius - dist)*(*tickTime);
-							
-							ballV[i].xVel += ((ballV[i].x - bhV[k].x)/dist)*term;
-							ballV[i].yVel += ((ballV[i].y - bhV[k].y)/dist)*term;
+				if (ballV[i].stationary == false) {
+					// Particle-boundary collisions
+					if (boundWalls) {
+						if (ballV[i].x > *resX - ballV[i].radius) {
+							// Ball linear spring rate w/ wall rebound efficiency
+							ballV[i].xVel += ((*resX - ballV[i].radius) - ballV[i].x)*ballV[i].springRate*
+							((ballV[i].xVel < 0) ? ballV[i].reboundEfficiency : 1.0)*(*tickTime);
 						}
-						else {
-							if (dist > bhV[k].radius) {
-								term = (bhV[k].centerAccel/pow(dist, 2))*(*tickTime);
+						else if (ballV[i].x < ballV[i].radius) {    
+							ballV[i].xVel += (ballV[i].radius - ballV[i].x)*ballV[i].springRate*
+							((ballV[i].xVel > 0) ? ballV[i].reboundEfficiency : 1.0)*(*tickTime);
+						}
+					}
+					if (ballV[i].y > *resY - ballV[i].radius) {
+						if (boundFloor) {
+							ballV[i].yVel += ((*resY - ballV[i].radius) - ballV[i].y)*ballV[i].springRate*
+							((ballV[i].yVel < 0) ? ballV[i].reboundEfficiency : 1.0)*(*tickTime);
+						}
+					}
+					else if (ballV[i].y < ballV[i].radius) {
+						if (boundCeiling) {
+							ballV[i].yVel += (ballV[i].radius - ballV[i].y)*ballV[i].springRate*
+							((ballV[i].yVel > 0) ? ballV[i].reboundEfficiency : 1.0)*(*tickTime);
+						}
+					}
+					else {
+						// Linear gravity
+						ballV[i].yVel += (linGravity)*(*tickTime);
+					}
+					
+					// Black hole effects
+					for (int k = 0; k < bhVsize; k++) {
+						if (bhV[k].active == true) {
+							double term;
+							double dist = sqrt(pow(ballV[i].x - bhV[k].x, 2.f) + pow(ballV[i].y - bhV[k].y, 2.f));
+							if (bhV[k].interact == COLLISION && dist < ballV[i].radius + bhV[k].radius) { 
+								term = ballV[i].springRate*(ballV[i].radius + bhV[k].radius - dist)*(*tickTime);
+								
+								ballV[i].xVel += ((ballV[i].x - bhV[k].x)/dist)*term;
+								ballV[i].yVel += ((ballV[i].y - bhV[k].y)/dist)*term;
 							}
 							else {
-								if (bhV[k].interact = DESTRUCTION ){
-									ballV[i].alive = false;
+								if (dist > bhV[k].radius) {
+									term = (bhV[k].centerAccel/pow(dist, 2))*(*tickTime);
 								}
 								else {
-									term = bhV[k].surfaceAccel*(*tickTime);
+									if (bhV[k].interact = DESTRUCTION ){
+										ballV[i].alive = false;
+									}
+									else {
+										term = bhV[k].surfaceAccel*(*tickTime);
+									}
 								}
-							}
 
-							ballV[i].xVel += ((bhV[k].x - ballV[i].x)/dist)*term;
-							ballV[i].yVel += ((bhV[k].y - ballV[i].y)/dist)*term;
+								ballV[i].xVel += ((bhV[k].x - ballV[i].x)/dist)*term;
+								ballV[i].yVel += ((bhV[k].y - ballV[i].y)/dist)*term;
+							}
 						}
 					}
 				}
