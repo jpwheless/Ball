@@ -31,7 +31,7 @@
 
 #define MAX_TICKTIME 0.0025
 #define TICKTIME_AVGFILT 0.05
-#define SCALEFACT_AVGFILT 5.0
+#define SCALEFACT_AVGFILT 0.05
 
 #define DEFAULT_RES_X 1500
 #define DEFAULT_RES_Y 900
@@ -40,9 +40,9 @@
 
 #define DEFAULT_NUM_BALLS 1000
 #define DEFAULT_BALL_DIA 10.0
-#define BASE_BALL_SPR_RATE 50000.0
+#define DEFAULT_BALL_SPR_RATE 50000.0
 #define DEFAULT_BALL_REB_EFF 0.9
-#define BASE_BALL_ATTR_RATE 25000.0
+#define DEFAULT_BALL_ATTR_RATE 25000.0*pow(DEFAULT_BALL_DIA/2.0, 2.0) // Surface rate to center rate
 #define DEFAULT_BALL_ATTR_RAD 5.0
 
 static std::mutex pauseMutex1;
@@ -67,7 +67,6 @@ private:
 	sfg::CheckButton::Ptr cbBoundWalls;
 	sfg::CheckButton::Ptr cbBoundFloor;
 	sfg::ToggleButton::Ptr bPause;
-	sfg::Button::Ptr bDebug;
 	sfg::Button::Ptr bClear;
 	sfg::Button::Ptr bStop;
 	sfg::ProgressBar::Ptr scaleBar;
@@ -94,16 +93,13 @@ private:
 	double scaleFactor, frameRateP, frameRateD;
 	double tickTimeMax, scaleFactorM;
 	
-	double tempComps;
-	
 	bool running;
 	bool debugRead;
 	
 	// Threads
 	std::thread* drawThread;
-	std::thread* calcPhysicsThread;
-	//std::thread* calcPhysicsThread1;
-	//std::thread* calcPhysicsThread2;
+	std::thread* calcPhysicsThread1;
+	std::thread* calcPhysicsThread2;
 	
 	z::SpinningBarrier rendezvous1 = z::SpinningBarrier(2);
 	z::SpinningBarrier rendezvous2 = z::SpinningBarrier(2);
@@ -114,10 +110,7 @@ private:
 	std::atomic<bool>* finishFlag2 = new std::atomic<bool>;
 	std::atomic<bool>* threadsPaused = new std::atomic<bool>;
 
-	///////////////////
-	// GUI Functions //
-	///////////////////
-	
+	// SFGUI button functions
 	void buttonCollision() {
 		particles->particleCollisions = cbCollision->IsActive();
 	}
@@ -137,6 +130,7 @@ private:
 		particles->boundWalls = cbBoundWalls->IsActive();
 	}
 	
+	/*
 	void buttonDebug() {
 		for (int i = 0; i < particles->ballV.size(); i++) {
 			std::cout << "Particle " << i << ": ";
@@ -150,6 +144,7 @@ private:
 		}
 		std::cout << "\n";
 	}
+	*/
 	void buttonPause() {
 		if (bPause->IsActive()) {
 			*threadsPaused = true;
@@ -224,22 +219,18 @@ private:
 		}
 	}
 	void densityComboFunc() {
-		switch(densityCombo->GetSelectedItem()) {
+		switch(diameterCombo->GetSelectedItem()) {
 			case 0:
-				input->newBallDensity = DENSITY_LIGHT;
+				input->newBallDia = DENSITY_LIGHT;
 				break;
 			case 1:
-				input->newBallDensity = DENSITY_MED;
+				input->newBallDia = DENSITY_MED;
 				break;
 			case 2:
-				input->newBallDensity = DENSITY_HEAVY;
+				input->newBallDia = DENSITY_HEAVY;
 				break;
 		}
 	}
-	
-	////////////////////
-	// Initialization //
-	////////////////////
 	
 	// Call after initGUI().
 	void initSFML() {
@@ -332,9 +323,6 @@ private:
 		bPause = sfg::ToggleButton::Create("Pause Sim");
 		bPause->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonPause, this));
 		
-		bDebug = sfg::Button::Create("Debug Read");
-		bDebug->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonDebug, this));
-		
 		bClear = sfg::Button::Create("Clear Screen");
 		bClear->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonClear, this));
 		
@@ -383,10 +371,8 @@ private:
 		diameterCombo->AppendItem("Diameter = 20");
 		diameterCombo->AppendItem("Diameter = 40");
 		
-		densityCombo->SelectItem(0);
-		diameterCombo->SelectItem(0);
 		densityCombo->GetSignal(sfg::ComboBox::OnSelect).Connect(std::bind(&z::Simulation::densityComboFunc, this));
-		diameterCombo->GetSignal(sfg::ComboBox::OnSelect).Connect(std::bind(&z::Simulation::diameterComboFunc, this));
+		diameterCombo->GetSignal(sfg::ComboBox::OnSelect).Connect(std::bind(&z::Simulation::diameterCombo, this));
 		
 		auto fixed1 = sfg::Fixed::Create();
 		fixed1->Put(paintOvrCheckButton, sf::Vector2f(10.0, 0.0));
@@ -395,7 +381,6 @@ private:
 		auto fixed2 = sfg::Fixed::Create();
 		fixed2->Put(bhPermCheckButton, sf::Vector2f(10.0, 0.0));
 		
-		boxSim->Pack(bDebug);
 		boxSim->Pack(bPause);
 		boxSim->Pack(label3);
 		boxSim->Pack(scaleBar);
@@ -442,7 +427,10 @@ public:
 	z::Input *input;
 	
 	z::Particles *particles;
-	
+
+	////////////////////
+	// Initialization //
+	////////////////////
 	Simulation() {
 		srand(static_cast<unsigned>(time(0)));
 	}
@@ -451,8 +439,8 @@ public:
 		// Clean up
 		delete mainWindow;
 		delete drawThread;
-		delete calcPhysicsThread;
-		//delete calcPhysicsThread2;
+		delete calcPhysicsThread1;
+		delete calcPhysicsThread2;
 		delete particles;
 		delete input;
 		delete loadBalance1;
@@ -472,19 +460,19 @@ public:
 																			
 		input->newBallDia = DIA_SMALL;
 		input->newBallDensity = DENSITY_LIGHT;
-		input->newBallSprRate = BASE_BALL_SPR_RATE;
+		input->newBallSprRate = DEFAULT_BALL_SPR_RATE;
 		input->newBallRebEff = DEFAULT_BALL_REB_EFF;
-		input->newBallAttrRate = BASE_BALL_ATTR_RATE;
+		input->newBallAttrRate = DEFAULT_BALL_ATTR_RATE;
 		input->newBallAttrRad = DEFAULT_BALL_ATTR_RAD;
 
 		particles->particleCollisions = true;
-		particles->particleStickyness = false;
+		particles->particleStickyness = true;
 		particles->boundCeiling = true;
 		particles->boundWalls = true;
 		particles->boundFloor = true;
 		
-		particles -> createInitBalls(DEFAULT_NUM_BALLS, DIA_SMALL, DENSITY_MED, BASE_BALL_SPR_RATE,
-																	DEFAULT_BALL_REB_EFF, BASE_BALL_ATTR_RATE, DEFAULT_BALL_ATTR_RAD);
+		particles -> createInitBalls(DEFAULT_NUM_BALLS, DIA_SMALL, DENSITY_LIGHT, DEFAULT_BALL_SPR_RATE,
+																	DEFAULT_BALL_REB_EFF, DEFAULT_BALL_ATTR_RATE, DEFAULT_BALL_ATTR_RAD);
 		
 		/*
 		// Open file and read values
@@ -587,9 +575,8 @@ public:
 		running = true;
 		*threadsPaused = false;
 		drawThread = new std::thread(&Simulation::draw, this);
-		calcPhysicsThread = new std::thread(&Simulation::calcPhysics, this);
-		//calcPhysicsThread1 = new std::thread(&Simulation::calcPhysics1, this);
-		//calcPhysicsThread2 = new std::thread(&Simulation::calcPhysics2, this);
+		calcPhysicsThread1 = new std::thread(&Simulation::calcPhysics1, this);
+		calcPhysicsThread2 = new std::thread(&Simulation::calcPhysics2, this);
 		
 		*loadBalance1 = particles->ballV.size() / 3.0;
 		*loadBalance2 = particles->ballV.size() / 2.0;
@@ -599,12 +586,10 @@ public:
 		tickTimeMax = MAX_TICKTIME;
 		frameRateP = 500;
 		frameRateD = 60;
-		scaleFactor = 1.0;
-		
+						
 		drawThread->join();
-		calcPhysicsThread->join();
-		//calcPhysicsThread1->join();
-		//calcPhysicsThread2->join();
+		calcPhysicsThread1->join();
+		calcPhysicsThread2->join();
 	}
 	
 	/////////////
@@ -657,6 +642,7 @@ public:
 			guiWindow->Update(1.0);
 			mainWindow->clear();
 			
+			
 			particles->draw(mainWindow);
 			input->draw();
 			mainWindow->draw(menuDivider, 2, sf::Lines);
@@ -669,8 +655,7 @@ public:
 											std::to_string(*loadBalance1) + "," + std::to_string(*loadBalance2)
 											+ "\n" + std::to_string(particles->ballV.size()) + "," + std::to_string(particles->ballAlive)
 											+ "\n" + std::to_string(particles->bhV.size()) + "," + std::to_string(particles->bhAlive)
-											+ "\n" + std::to_string((int)particles->maxParticleVel)
-											+ "\n" + std::to_string(tempComps));
+											+ "\n" + std::to_string((int)particles->maxParticleVel));
 				mainWindow->draw(fps);
 			}
 			
@@ -682,36 +667,7 @@ public:
 			mainWindow->display();
 		}
 	}
-	
-	void calcPhysics() {
-		tempComps = 0;
-		while(running){
 		
-			particles->sortParticlesX();
-			tempComps = particles->sortParticlesX();
-			//tempComps = SCALEFACT_AVGFILT*double(particles->sortParticlesX()) + tempComps*(1.0 - SCALEFACT_AVGFILT);
-			particles->addPhysics();
-			
-			{ // Timekeeping
-				elapsedTimeP = clockP.restart();
-				
-				tickTimeActual = TICKTIME_AVGFILT*elapsedTimeP.asSeconds() + tickTimeActual*(1.0 - TICKTIME_AVGFILT);
-				tickTimeMax = std::min(DIA_SMALL/(2.0*particles->maxParticleVel), MAX_TICKTIME);
-				
-				double tempScaleFactor =  std::min(tickTimeMax/tickTimeActual, scaleFactorM);
-				if (scaleFactor > tempScaleFactor) scaleFactor = tempScaleFactor;
-				else scaleFactor = SCALEFACT_AVGFILT*tickTimeActual*std::min(tickTimeMax/tickTimeActual, scaleFactorM)
-													 + scaleFactor*(1.0 - tickTimeActual*SCALEFACT_AVGFILT);
-				
-				tickTime = tickTimeActual*scaleFactor;
-				
-				frameRateP = 1.0/tickTime;
-			}
-		}
-	}
-	
-	/*
-			
 	// Handle first portion of particles
 	void calcPhysics1() {
 		std::unique_lock<std::mutex> lock1(pauseMutex1);
@@ -731,16 +687,17 @@ public:
 			particles->addPhysics(0, *loadBalance2);
 			*finishFlag2 = true;
 			
-			{ // Timekeeping
+			// Timekeeping
+			{
 				elapsedTimeP = clockP.restart();
 				
 				tickTimeActual = TICKTIME_AVGFILT*elapsedTimeP.asSeconds() + tickTimeActual*(1.0 - TICKTIME_AVGFILT);
+				//double tempMax =  std::min(DIA_SMALL/(2.0*particles->maxParticleVel), MAX_TICKTIME);
+				//if (tickTimeMax > tempMax) tickTimeMax = tempMax;
+				//else tickTimeMax = 0.000005*tickTimeActual*tempMax + tickTimeMax*(1.0 - 0.000005*tickTimeActual);
 				tickTimeMax = std::min(DIA_SMALL/(2.0*particles->maxParticleVel), MAX_TICKTIME);
 				
-				double tempScaleFactor =  std::min(tickTimeMax/tickTimeActual, scaleFactorM);
-				if (scaleFactor > tempScaleFactor) scaleFactor = tempScaleFactor;
-				else scaleFactor = SCALEFACT_AVGFILT*tickTimeActual*std::min(tickTimeMax/tickTimeActual, scaleFactorM)
-													 + scaleFactor*(1.0 - tickTimeActual*SCALEFACT_AVGFILT);
+				scaleFactor = std::min(tickTimeMax/tickTimeActual, scaleFactorM);
 				
 				tickTime = tickTimeActual*scaleFactor;
 				
@@ -778,7 +735,6 @@ public:
 			rendezvous2.wait();
 		}
 	}
-	*/
 
 };
 }
