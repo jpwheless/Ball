@@ -93,6 +93,11 @@ public:
 		mass = area*density;
 	}
 	
+	void setSticky(double attrRadT, double attrRateT) {
+		attrRate = attrRateT*pow(radius, 2.0); // Convert to center attr rate for physics
+		attrRad = attrRadT;
+	}
+	
 	void setColor(int r, int g, int b) {
 		ballShape.setFillColor(sf::Color(r, g, b)); 
 	}

@@ -31,7 +31,7 @@
 
 #define MAX_TICKTIME 0.0025
 #define TICKTIME_AVGFILT 0.05
-#define SCALEFACT_AVGFILT 0.05
+#define SCALEFACT_AVGFILT 5.0
 
 #define DEFAULT_RES_X 1500
 #define DEFAULT_RES_Y 900
@@ -40,9 +40,9 @@
 
 #define DEFAULT_NUM_BALLS 1000
 #define DEFAULT_BALL_DIA 10.0
-#define DEFAULT_BALL_SPR_RATE 50000.0
+#define BASE_BALL_SPR_RATE 50000.0
 #define DEFAULT_BALL_REB_EFF 0.9
-#define DEFAULT_BALL_ATTR_RATE 25000.0*pow(DEFAULT_BALL_DIA/2.0, 2.0) // Surface rate to center rate
+#define BASE_BALL_ATTR_RATE 25000.0
 #define DEFAULT_BALL_ATTR_RAD 5.0
 
 static std::mutex pauseMutex1;
@@ -110,7 +110,10 @@ private:
 	std::atomic<bool>* finishFlag2 = new std::atomic<bool>;
 	std::atomic<bool>* threadsPaused = new std::atomic<bool>;
 
-	// SFGUI button functions
+	///////////////////
+	// GUI Functions //
+	///////////////////
+	
 	void buttonCollision() {
 		particles->particleCollisions = cbCollision->IsActive();
 	}
@@ -219,18 +222,22 @@ private:
 		}
 	}
 	void densityComboFunc() {
-		switch(diameterCombo->GetSelectedItem()) {
+		switch(densityCombo->GetSelectedItem()) {
 			case 0:
-				input->newBallDia = DENSITY_LIGHT;
+				input->newBallDensity = DENSITY_LIGHT;
 				break;
 			case 1:
-				input->newBallDia = DENSITY_MED;
+				input->newBallDensity = DENSITY_MED;
 				break;
 			case 2:
-				input->newBallDia = DENSITY_HEAVY;
+				input->newBallDensity = DENSITY_HEAVY;
 				break;
 		}
 	}
+	
+	////////////////////
+	// Initialization //
+	////////////////////
 	
 	// Call after initGUI().
 	void initSFML() {
@@ -371,8 +378,10 @@ private:
 		diameterCombo->AppendItem("Diameter = 20");
 		diameterCombo->AppendItem("Diameter = 40");
 		
+		densityCombo->SelectItem(0);
+		diameterCombo->SelectItem(0);
 		densityCombo->GetSignal(sfg::ComboBox::OnSelect).Connect(std::bind(&z::Simulation::densityComboFunc, this));
-		diameterCombo->GetSignal(sfg::ComboBox::OnSelect).Connect(std::bind(&z::Simulation::diameterCombo, this));
+		diameterCombo->GetSignal(sfg::ComboBox::OnSelect).Connect(std::bind(&z::Simulation::diameterComboFunc, this));
 		
 		auto fixed1 = sfg::Fixed::Create();
 		fixed1->Put(paintOvrCheckButton, sf::Vector2f(10.0, 0.0));
@@ -427,10 +436,7 @@ public:
 	z::Input *input;
 	
 	z::Particles *particles;
-
-	////////////////////
-	// Initialization //
-	////////////////////
+	
 	Simulation() {
 		srand(static_cast<unsigned>(time(0)));
 	}
@@ -460,19 +466,19 @@ public:
 																			
 		input->newBallDia = DIA_SMALL;
 		input->newBallDensity = DENSITY_LIGHT;
-		input->newBallSprRate = DEFAULT_BALL_SPR_RATE;
+		input->newBallSprRate = BASE_BALL_SPR_RATE;
 		input->newBallRebEff = DEFAULT_BALL_REB_EFF;
-		input->newBallAttrRate = DEFAULT_BALL_ATTR_RATE;
+		input->newBallAttrRate = BASE_BALL_ATTR_RATE;
 		input->newBallAttrRad = DEFAULT_BALL_ATTR_RAD;
 
 		particles->particleCollisions = true;
-		particles->particleStickyness = true;
+		particles->particleStickyness = false;
 		particles->boundCeiling = true;
 		particles->boundWalls = true;
 		particles->boundFloor = true;
 		
-		particles -> createInitBalls(DEFAULT_NUM_BALLS, DIA_SMALL, DENSITY_LIGHT, DEFAULT_BALL_SPR_RATE,
-																	DEFAULT_BALL_REB_EFF, DEFAULT_BALL_ATTR_RATE, DEFAULT_BALL_ATTR_RAD);
+		particles -> createInitBalls(DEFAULT_NUM_BALLS, DIA_SMALL, DENSITY_MED, BASE_BALL_SPR_RATE,
+																	DEFAULT_BALL_REB_EFF, BASE_BALL_ATTR_RATE, DEFAULT_BALL_ATTR_RAD);
 		
 		/*
 		// Open file and read values
@@ -586,6 +592,7 @@ public:
 		tickTimeMax = MAX_TICKTIME;
 		frameRateP = 500;
 		frameRateD = 60;
+		scaleFactor = 1.0;
 						
 		drawThread->join();
 		calcPhysicsThread1->join();
@@ -678,26 +685,27 @@ public:
 			}
 		
 			*finishFlag1 = false;
+			particles->collisonUpdate(0, particles->size());
 			particles->collisonUpdate(0, *loadBalance1);
 			*finishFlag1 = true;
 			
 			rendezvous1.wait();
 			
 			*finishFlag2 = false;
+			particles->addPhysics(0, particles->size());
 			particles->addPhysics(0, *loadBalance2);
 			*finishFlag2 = true;
 			
-			// Timekeeping
-			{
+			{ // Timekeeping
 				elapsedTimeP = clockP.restart();
 				
 				tickTimeActual = TICKTIME_AVGFILT*elapsedTimeP.asSeconds() + tickTimeActual*(1.0 - TICKTIME_AVGFILT);
-				//double tempMax =  std::min(DIA_SMALL/(2.0*particles->maxParticleVel), MAX_TICKTIME);
-				//if (tickTimeMax > tempMax) tickTimeMax = tempMax;
-				//else tickTimeMax = 0.000005*tickTimeActual*tempMax + tickTimeMax*(1.0 - 0.000005*tickTimeActual);
 				tickTimeMax = std::min(DIA_SMALL/(2.0*particles->maxParticleVel), MAX_TICKTIME);
 				
-				scaleFactor = std::min(tickTimeMax/tickTimeActual, scaleFactorM);
+				double tempScaleFactor =  std::min(tickTimeMax/tickTimeActual, scaleFactorM);
+				if (scaleFactor > tempScaleFactor) scaleFactor = tempScaleFactor;
+				else scaleFactor = SCALEFACT_AVGFILT*tickTimeActual*std::min(tickTimeMax/tickTimeActual, scaleFactorM)
+													 + scaleFactor*(1.0 - tickTimeActual*SCALEFACT_AVGFILT);
 				
 				tickTime = tickTimeActual*scaleFactor;
 				
