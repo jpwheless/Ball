@@ -121,18 +121,12 @@ public:
 						if (mouseReleased && mouseX <= *resX) {
 							particles->deactivateCloud(mouseX, mouseY, mouseRad);
 							particles->createCloud(mouseX, mouseY, mouseRad, 0, 0, newBallDia, newBallDensity, newBallSprRate,
-																			newBallRebEff, newBallAttrRate, newBallAttrRad, false, false);
-						}
-					}
-					else if (paintForce) {
-						if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && mouseX <= *resX) { 
-							particles->createCloud(mouseX, mouseY, mouseRad, 0, 0, newBallDia, newBallDensity, newBallSprRate,
-																			newBallRebEff, newBallAttrRate, newBallAttrRad, false, false);
+																			newBallRebEff, newBallAttrRate, newBallAttrRad, false, true);
 						}
 					}
 					else if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && mouseX <= *resX) {
 						particles->createCloud(mouseX, mouseY, mouseRad, 0, 0, newBallDia, newBallDensity, newBallSprRate,
-																		newBallRebEff, newBallAttrRate, newBallAttrRad, false, false);
+																		newBallRebEff, newBallAttrRate, newBallAttrRad, false, paintForce);
 					}
 					break;
 				case 4: // Shoot

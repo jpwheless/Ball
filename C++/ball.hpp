@@ -16,6 +16,9 @@ public:
 	double attrRad, attrRate;
 	sf::CircleShape ballShape;
 	bool alive, stationary;
+	
+	int xSortPlace;
+	int ySortPlace;
 		
 	static bool *boundCeiling;
 	static bool *boundWalls;
@@ -91,6 +94,11 @@ public:
 	void setMass(double density) {
 		double area = 3.14159265359*pow(radius, 2.0);
 		mass = area*density;
+	}
+	
+	void setSticky(double attrRadT, double attrRateT) {
+		attrRate = attrRateT*pow(radius, 2.0); // Convert to senter attr rate for physics
+		attrRad = attrRadT;
 	}
 	
 	void setColor(int r, int g, int b) {
