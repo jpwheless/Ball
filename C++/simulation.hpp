@@ -378,7 +378,7 @@ private:
 		diameterCombo->AppendItem("Diameter = 20");
 		diameterCombo->AppendItem("Diameter = 40");
 		
-		densityCombo->SelectItem(0);
+		densityCombo->SelectItem(1);
 		diameterCombo->SelectItem(0);
 		densityCombo->GetSignal(sfg::ComboBox::OnSelect).Connect(std::bind(&z::Simulation::densityComboFunc, this));
 		diameterCombo->GetSignal(sfg::ComboBox::OnSelect).Connect(std::bind(&z::Simulation::diameterComboFunc, this));
@@ -465,7 +465,7 @@ public:
 
 																			
 		input->newBallDia = DIA_SMALL;
-		input->newBallDensity = DENSITY_LIGHT;
+		input->newBallDensity = DENSITY_MED;
 		input->newBallSprRate = BASE_BALL_SPR_RATE;
 		input->newBallRebEff = DEFAULT_BALL_REB_EFF;
 		input->newBallAttrRate = BASE_BALL_ATTR_RATE;
@@ -685,14 +685,12 @@ public:
 			}
 		
 			*finishFlag1 = false;
-			particles->collisonUpdate(0, particles->size());
 			particles->collisonUpdate(0, *loadBalance1);
 			*finishFlag1 = true;
 			
 			rendezvous1.wait();
 			
 			*finishFlag2 = false;
-			particles->addPhysics(0, particles->size());
 			particles->addPhysics(0, *loadBalance2);
 			*finishFlag2 = true;
 			
