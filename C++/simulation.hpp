@@ -684,8 +684,8 @@ public:
 			}
 		
 			*finishFlag1 = false;
-			//particles->collisonUpdate(0, *loadBalance1);
 			particles->quadSortParticles(0, *loadBalance1);
+			particles->quadCollideParticles(0, *loadBalance1);
 			*finishFlag1 = true;
 			
 			rendezvous1.wait();
@@ -722,8 +722,8 @@ public:
 				pauseCV2.wait(lock2);
 			}
 		
-			//particles->collisonUpdate(*loadBalance1, particles->size());
 			particles->quadSortParticles(*loadBalance1, particles->size());
+			particles->quadCollideParticles(*loadBalance1, particles->size());
 			
 			// If thread #1 has finished first, then increase its load
 			if (*finishFlag1 == true) *loadBalance1 = *loadBalance1 + 1;

@@ -3,9 +3,6 @@
 
 namespace z {
 
-class Ball;
-class Particles;
-
 class Quad {
 private:
 	z::Quad *parentQuad;
@@ -19,6 +16,8 @@ public:
 	double xMax;
 	double yMin;
 	double yMax;
+	
+	static Particles *particles;
 	
 	Quad(z::Quad *parentQ, unsigned int thisLevel, unsigned int maxLevel, unsigned int childNum, double xMin, double xMax, double yMin, double yMax) {
 		this->xMin = xMin;
@@ -73,18 +72,41 @@ public:
 						}
 					}
 				}
-				found = true;
+				
 			}
 		}
 		return found;
 	}
 	
-	void collideParticles(unsigned long int pID) {
-	
-	
-	
+	// Search for particle collisions in all particles lower in the tree than passed particle
+	void collideParticles(Ball *particleA, bool resident) {
+		bool found = !resident;
+		if (resident) { // Find particle in resident list
+			int i;
+			for (i = 0; i < residentList.size() && !found; i++) {
+				if (residentList[i]->getID() == particleA->getID()) {
+					found = true;
+					i++;
+					// Collide all particles under it
+					for (; i < residentList.size(); i++) {
+						if (residentList[i]->alive) particles->collisonUpdate(particleA, residentList[i]);
+					}
+				}
+			}
+		}
+		else {
+			for (int i = 0; i < residentList.size(); i++) {
+				if (residentList[i]->alive) particles->collisonUpdate(particleA, residentList[i]);
+			}
+		}
+		// Do not collide children if particle was supposed to be found and wasn't
+		if (found && level < maxLevel) {
+			for (int i = 0; i <= 3; i++) {
+				childQuad[i]->collideParticles(particleA, false);
+			}
+		}
 	}
-	
+		
 	bool addParticle(Ball *movedParticle, bool sortedDown) {
 		// if sortedDown, bounds have been checked by parent
 		// if trickleParticle returns false, particle must be added to residents
@@ -204,6 +226,9 @@ public:
 	}
 		
 };
+
+Particles *particles;
+
 }
 
 #endif

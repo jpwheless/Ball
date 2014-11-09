@@ -55,6 +55,7 @@ public:
 		tickTime = tickTimeT;
 		linGravity = linGravityT;
 		
+		Quad::particles = this;
 		quadTree = new Quad(NULL, 0, 4, 0, 0, *resX, 0, *resY);
 		
 		BlackHole::tickTime = tickTime;
@@ -404,9 +405,21 @@ public:
 	// Physics //
 	/////////////
 	
+	// Sort particles within quad tree
 	void quadSortParticles(unsigned int iStart, unsigned int iStop) {
 		for (int i = iStart; i < iStop; i++) {
 			ballV[i]->quadResidence->sortParticle(ballV[i]->getID());
+		}
+	}
+	
+	// Do optimized collision searching
+	void quadCollideParticles(unsigned int iStart, unsigned int iStop) {
+		if (particleCollisions) {
+			for (int i = iStart; i < iStop; i++) {
+				if (ballV[i]->alive) {
+					ballV[i]->quadResidence->collideParticles(ballV[i], true);
+				}
+			}
 		}
 	}
 	
@@ -568,9 +581,6 @@ public:
 								forceVect = ((ballV[i]->y - ballV[j]->y)/dist)*force;
 								ballV[i]->yVel -= forceVect/ballV[i]->mass;
 								ballV[j]->yVel += forceVect/ballV[j]->mass;
-								
-								force = (ballV[i]->x - ballV[j]->x);
-							
 							}
 						}
 					}
@@ -578,6 +588,78 @@ public:
 			}
 		}
 	}
+	
+	// Assumes that particleCollisions and both balls are alive
+	void collisonUpdate(Ball *ballA, Ball *ballB) {
+		
+		// Distance between the two points
+		double dist = sqrt(pow(ballA->x - ballB->x, 2.0) + pow(ballA->y - ballB->y, 2.0));
+		if (dist == 0) dist = 0.01; // Remove divide by zero errors
+		
+		double centerDist = ballA->radius + ballB->radius;
+		
+		
+		// Check for particle collision
+		if (dist < centerDist) { 
+			double force = ((ballA->springRate + ballA->springRate)/2.f)
+										*(centerDist - dist)*(*tickTime);
+			double forceVect;
+			
+			// If ball centers collide, then average their momentum
+			//(((ballA->x < ballB->x && ballA->xVel < ballB->xVel) ||
+			//		(ballA->x > ballB->x && ballA->xVel > ballB->xVel))
+			if (dist < centerDist*0.2) {
+				if((ballA->x < ballB->x && ballA->xVel > ballB->xVel) ||
+					(ballA->x > ballB->x && ballA->xVel < ballB->xVel)) {
+					
+					double momentum = (ballA->xVel*ballA->mass + ballB->xVel*ballB->mass)/2.0;
+					
+					ballA->xVel = momentum/ballA->mass;
+					ballB->xVel = momentum/ballB->mass;
+				}
+				if((ballA->y < ballB->y && ballA->yVel > ballB->yVel) ||
+					(ballA->y > ballB->y && ballA->yVel < ballB->yVel)) {
+					
+					double momentum = (ballA->yVel*ballA->mass + ballB->yVel*ballB->mass)/2.0;
+					
+					ballA->yVel = momentum/ballA->mass;
+					ballB->yVel = momentum/ballB->mass;
+				}									
+			}
+			forceVect = ((ballA->x - ballB->x)/dist)*force*
+				(((ballA->x < ballB->x && ballA->xVel < ballB->xVel) ||
+				(ballA->x > ballB->x && ballA->xVel > ballB->xVel)) ? ballA->reboundEfficiency : 1.0);
+			ballA->xVel += forceVect/ballA->mass;
+			ballB->xVel -= forceVect/ballB->mass;
+			forceVect = ((ballA->y - ballB->y)/dist)*force*
+				(((ballA->y < ballB->y && ballA->yVel < ballB->yVel) ||
+				(ballA->y > ballB->y && ballA->yVel > ballB->yVel)) ? ballA->reboundEfficiency : 1.0);
+			ballA->yVel += forceVect/ballA->mass;
+			ballB->yVel -= forceVect/ballB->mass;
+		}
+		else if (particleStickyness && dist < centerDist + std::max(ballA->attrRad, ballB->attrRad)) {
+			
+			// Figure out which attraction rates to use
+			double attractRate = 0;
+			if (dist < centerDist + ballA->attrRad) {
+				attractRate += ballA->attrRate;
+			}
+			if (dist < centerDist + ballA->attrRad) {
+				attractRate += ballB->attrRate;
+			}
+			
+			double force = attractRate*(*tickTime)/std::pow(dist, 2.f);
+			double forceVect;
+			
+			forceVect = ((ballA->x - ballB->x)/dist)*force;
+			ballA->xVel -= forceVect/ballA->mass;
+			ballB->xVel += forceVect/ballB->mass;
+			forceVect = ((ballA->y - ballB->y)/dist)*force;
+			ballA->yVel -= forceVect/ballA->mass;
+			ballB->yVel += forceVect/ballB->mass;
+		}
+	}
+
 		
 	void draw(sf::RenderWindow* mainWindow) {
 		int tempCount = 0;
