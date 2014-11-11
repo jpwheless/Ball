@@ -41,7 +41,7 @@ namespace z {
 		int i;
 		for (i = 0; i < residentList.size() && !found; i++) {
 			if (residentList[i]->getID() == pID) {
-				if (trickleParticle(residentList[i], false)) { // Return true if particle is moved
+				if (trickleParticle(residentList[i], true)) { // Return true if particle is moved
 					// This function may take some time to return
 					// Another thread may have reordered this residentList
 					// Make sure it's the right particle
@@ -52,7 +52,6 @@ namespace z {
 						}
 					}
 				}
-				
 			}
 		}
 		return found;
@@ -87,10 +86,10 @@ namespace z {
 		}
 	}
 		
-	bool Quad::addParticle(Ball *movedParticle, bool sortedDown) {
+	bool Quad::addParticle(Ball *movedParticle, bool checkBounds) {
 		// if sortedDown, bounds have been checked by parent
 		// if trickleParticle returns false, particle must be added to residents
-		if (!trickleParticle(movedParticle, !sortedDown)) {
+		if (!trickleParticle(movedParticle, checkBounds)) {
 			residentList.push_back(movedParticle);
 			movedParticle->quadResidence = this;
 		}
@@ -107,80 +106,59 @@ namespace z {
 		// Check if out of bounds
 		// Move to parent if so
 		if (checkBounds && level != 0) {
-			if (boundArray[0] < xMin) {
-				switch (childNum) {
-					case 0: // Top left
-					case 2: // Bottom left	
-						// Move to grandparent
+			switch (childNum) {
+				case 0: // Top left
+					if (boundArray[0] < xMin || boundArray[2] < yMin) {
 						return moveToGrandparent(newParticle);
-						break;
-					case 1: // Top right
-					case 3: // Bottom right	
-						// Move to parent
+					}
+					else if (boundArray[1] > xMax || boundArray[3] > yMax) {
 						return movetoParent(newParticle);
-						break;
-				}
-			}
-			else if (boundArray[1] > xMax) {
-				switch (childNum) {
-					case 0: // Top left
-					case 2: // Bottom left
-						// Move to parent
+					}
+					break;
+				case 1: // Top right
+					if (boundArray[0] < xMin || boundArray[3] > yMax) {
+						return moveToGrandparent(newParticle);
+					}
+					else if (boundArray[1] > xMax || boundArray[2] < yMin) {
 						return movetoParent(newParticle);
-						break;
-					case 1: // Top right
-					case 3: // Bottom right	
-						// Move to grandparent
+					}
+					break;
+				case 2: // Bottom left	
+					if (boundArray[0] < xMin || boundArray[3] > yMax) {
 						return moveToGrandparent(newParticle);
-						break;
-				}
-			}
-			else if (boundArray[2] < yMin) {
-				switch (childNum) {
-					case 0: // Top left
-					case 1: // Top right
-						// Move to grandparent
-						return moveToGrandparent(newParticle);
-						break;
-					case 2: // Bottom left	
-					case 3: // Bottom right	
-						// Move to parent
+					}
+					else if (boundArray[1] > xMax || boundArray[2] < yMin) {
 						return movetoParent(newParticle);
-						break;
-				}
-			}
-			else if (boundArray[3] > yMax) {
-				switch (childNum) {
-					case 0: // Top left
-					case 1: // Top right
-						// Move to parent
-						break;
-					case 2: // Bottom left	
-					case 3: // Bottom right	
-						// Move to grandparent
+					}
+					break;
+				case 3: // Bottom right
+					if (boundArray[1] > xMax || boundArray[3] > yMax) {
 						return moveToGrandparent(newParticle);
-						break;
-				}
+					}
+					else if (boundArray[0] < xMin || boundArray[2] < yMin) {
+						return movetoParent(newParticle);
+					}
+					break;
 			}
 		}
 		// Particle is within bounds
 		// See if it needs moving to child
 		if (level < maxLevel) {
-			double xRange = (xMax - xMin)/2.0;
-			double yRange = (yMax - yMin)/2.0;
-			if (boundArray[1] < xMin+xRange) { // Left
-				if (boundArray[4] < yMin+yRange) { // Top
+			double xMid = xMin + (xMax - xMin)/2.0;
+			double yMid = yMin + (yMax - yMin)/2.0;
+			if (boundArray[1] < xMid) { // Left
+				if (boundArray[4] < yMid) { // Top
 					return moveToChild(0, newParticle);
 				}
-				else if (boundArray[3] > yMin+yRange) { // Bottom
+				else if (boundArray[3] > yMid) { // Bottom
 					return moveToChild(2, newParticle);
 				}
 			}
-			else if (boundArray[0] > xMin+xRange) { // Right
-				if (boundArray[4] < yMin+yRange) { // Top
+			else if (boundArray[0] > xMid) { // Right
+				if (boundArray[4] < yMid) { // Top
 					return moveToChild(1, newParticle);
 				}
-				else if (boundArray[3] > yMin+yRange) { // Bottom
+				else if (boundArray[3] > yMid) { // Bottom
 					return moveToChild(3, newParticle);
 				}
 			}
@@ -191,18 +169,18 @@ namespace z {
 	
 	bool Quad::moveToGrandparent(Ball *movedParticle) {
 		if (level > 1) return parentQuad->movetoParent(movedParticle);
-		else return parentQuad->addParticle(movedParticle, false);
+		else return parentQuad->addParticle(movedParticle, true);
 	}
 	
 	bool Quad::movetoParent(Ball *movedParticle) {
 		if (level > 0) {
-			return parentQuad->addParticle(movedParticle, false);
+			return parentQuad->addParticle(movedParticle, true);
 		}
 		else return false;
 	}
 	
 	bool Quad::moveToChild(unsigned int childNum, Ball *movedParticle) {
-		return childQuad[childNum]->addParticle(movedParticle, true);
+		return childQuad[childNum]->addParticle(movedParticle, false);
 	}
 	
 	Particles *Quad::particles;

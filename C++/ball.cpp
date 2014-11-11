@@ -99,7 +99,7 @@ namespace z {
 	
 	// Fills array with xMin, xMax, yMin, yMax of bounding box
 	void Ball::getBounds(double boundArray[4]) {
-		double dist = radius + (*sticky) ? attrRad : 0.0;
+		double dist = radius + ((*sticky) ? attrRad : 0.0);
 		boundArray[0] = x - dist;
 		boundArray[1] = x + dist;
 		boundArray[2] = y - dist;
@@ -113,5 +113,4 @@ namespace z {
 	double *Ball::tickTime;
 	int *Ball::resX;
 	int *Ball::resY;
-
 }

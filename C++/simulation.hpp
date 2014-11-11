@@ -144,7 +144,9 @@ private:
 				std::cout <<", x = " << particles->ballV[i]->x << ", y = " << particles->ballV[i]->y << "\n\tLevel: ";
 				std::cout << particles->ballV[i]->quadResidence->level << ", Parent: " << particles->ballV[i]->quadResidence->parentQuad;
 				std::cout	<< ", xMin, xMax, yMin, yMax: " << particles->ballV[i]->quadResidence->xMin << "," << particles->ballV[i]->quadResidence->xMax << "," << particles->ballV[i]->quadResidence->yMin << "," << particles->ballV[i]->quadResidence->yMax << "\n";
-				
+				double boundArray[4]; // xMin, xMax, yMin, yMax
+				particles->ballV[i]->getBounds(boundArray);
+				std::cout << "xMin, xMax, yMin, yMax: " << boundArray[0] << "," << boundArray[1] << "," << boundArray[2] << "," << boundArray[3] << "\n";
 			}
 			else {
 				std::cout << "Inactive\n";

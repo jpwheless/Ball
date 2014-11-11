@@ -32,7 +32,7 @@ public:
 	
 	Quad(Quad*, unsigned int, unsigned int, unsigned int, double, double, double, double);
 	~Quad() {
-		for (int i = 0; i <= 3; i++) delete childQuad[i];
+		//for (int i = 0; i <= 3; i++) delete childQuad[i];
 	}
 	bool sortParticle(unsigned long int );
 	void collideParticles(Ball*, bool);
