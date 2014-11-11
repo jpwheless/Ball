@@ -1,6 +1,6 @@
-#include "simulation.hpp"
+// Written by Jonathan Wheless
 
-using namespace std;
+#include "simulation.hpp"
 
 // Load params from file and start simulation
 int main() {
@@ -13,6 +13,7 @@ int main() {
 // Fix boundary/no boundary particle deletion
 // Add 3 classes each of density, size, and stickyness for particles
 // Add an icon for the program
+// Optimize collision detection
 
 
 // ** Done **

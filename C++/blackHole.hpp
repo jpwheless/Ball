@@ -5,7 +5,7 @@
 #include <vector>
 #include <cmath>
 
-#define MOUSE_FILT 30.0
+#define MOUSE_FILT 10.0
 
 namespace z {
 
@@ -78,9 +78,6 @@ public:
 		ballShape.setFillColor(sf::Color(r, g, b)); 
 	}
 };
-
-double *BlackHole::tickTime;
-
 }
 
 #endif

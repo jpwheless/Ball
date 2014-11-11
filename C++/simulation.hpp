@@ -13,9 +13,12 @@
 #include <mutex>
 #include <condition_variable>
 
+#include "quad.hpp"
 #include "barrier.hpp"
 #include "particles.hpp"
 #include "input.hpp"
+
+//==============================
 
 #define DIA_SMALL 10.0
 #define DIA_MED 20.0
@@ -67,6 +70,7 @@ private:
 	sfg::CheckButton::Ptr cbBoundWalls;
 	sfg::CheckButton::Ptr cbBoundFloor;
 	sfg::ToggleButton::Ptr bPause;
+	sfg::Button::Ptr bDebug;
 	sfg::Button::Ptr bClear;
 	sfg::Button::Ptr bStop;
 	sfg::ProgressBar::Ptr scaleBar;
@@ -132,14 +136,15 @@ private:
 	void buttonBoundWalls() {
 		particles->boundWalls = cbBoundWalls->IsActive();
 	}
-	
-	/*
 	void buttonDebug() {
 		for (int i = 0; i < particles->ballV.size(); i++) {
 			std::cout << "Particle " << i << ": ";
-			if (particles->ballV[i].alive) {
-				std::cout << "Vel = " << sqrt(pow(particles->ballV[i].xVel, 2.0) + pow(particles->ballV[i].yVel, 2.0));
-				std::cout <<", x = " << particles->ballV[i].x << ", y = " << particles->ballV[i].y << "\n";
+			if (particles->ballV[i]->alive) {
+				std::cout << "Vel = " << sqrt(pow(particles->ballV[i]->xVel, 2.0) + pow(particles->ballV[i]->yVel, 2.0));
+				std::cout <<", x = " << particles->ballV[i]->x << ", y = " << particles->ballV[i]->y << "\n\tLevel: ";
+				std::cout << particles->ballV[i]->quadResidence->level << ", Parent: " << particles->ballV[i]->quadResidence->parentQuad;
+				std::cout	<< ", xMin, xMax, yMin, yMax: " << particles->ballV[i]->quadResidence->xMin << "," << particles->ballV[i]->quadResidence->xMax << "," << particles->ballV[i]->quadResidence->yMin << "," << particles->ballV[i]->quadResidence->yMax << "\n";
+				
 			}
 			else {
 				std::cout << "Inactive\n";
@@ -147,7 +152,6 @@ private:
 		}
 		std::cout << "\n";
 	}
-	*/
 	void buttonPause() {
 		if (bPause->IsActive()) {
 			*threadsPaused = true;
@@ -330,6 +334,9 @@ private:
 		bPause = sfg::ToggleButton::Create("Pause Sim");
 		bPause->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonPause, this));
 		
+		bDebug = sfg::Button::Create("Debug Print");
+		bDebug->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonDebug, this));
+		
 		bClear = sfg::Button::Create("Clear Screen");
 		bClear->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonClear, this));
 		
@@ -397,6 +404,7 @@ private:
 		boxSim->Pack(scaleScale);
 		boxSim->Pack(bClear);
 		boxSim->Pack(bStop);
+		boxSim->Pack(bDebug);
 		boxParam->Pack(label1);
 		boxParam->Pack(cbCollision);
 		boxParam->Pack(cbStickyness);

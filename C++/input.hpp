@@ -1,3 +1,6 @@
+#ifndef INPUT_HPP
+#define INPUT_HPP
+
 #define PI 3.14159265359
 #define PI2 6.28318530718
 #define PIovr2 1.57079632679
@@ -19,6 +22,8 @@
 #define MAX_BHRAD 20
 #define MIN_BHRAD 5
 
+#include <SFML/Graphics.hpp>
+#include "particles.hpp"
 
 namespace z {
 
@@ -286,3 +291,5 @@ public:
 };
 
 }
+
+#endif
