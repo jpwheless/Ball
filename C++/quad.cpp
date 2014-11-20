@@ -25,7 +25,7 @@ namespace z {
 		residentList.reserve(MAX_PARTICLES);
 		
 		tooManyNulls = false;
-		
+				
 		if (thisLevel < maxLevel) {
 			double xRange = (xMax - xMin)/2.0;
 			double yRange = (yMax - yMin)/2.0;
@@ -101,6 +101,7 @@ namespace z {
 		if (!trickleParticle(movedParticle, checkBounds)) {
 			unsigned int i = 0;
 			bool nullEntry = false;
+			writingLock.lock();
 			for (; i < residentList.size() && !nullEntry; i++) {
 				if (residentList[i] == NULL) {
 					nullEntry = true;
@@ -108,15 +109,12 @@ namespace z {
 				}
 			}
 			if (nullEntry) {
-				//if (residentList[i] == NULL) std::cout << "NULL\t";
-				//else std::cout << residentList[i] << "\t";
 				residentList[i] = movedParticle;
-				//std::cout << residentList[i] << "\n";
 			}
 			else {
 				residentList.push_back(movedParticle);
-				//std::cout << "no\n";
 			}
+			writingLock.unlock();
 			
 			movedParticle->quadResidence = this;
 		}

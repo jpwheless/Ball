@@ -20,19 +20,7 @@
 
 //==============================
 
-#define DIA_SMALL 10.0
-#define DIA_MED 20.0
-#define DIA_LARGE 40.0
-
-#define DENSITY_LIGHT 0.25
-#define DENSITY_MED 1.0
-#define DENSITY_HEAVY 4.0
-
-#define STICKY_NONE 10
-#define STICKY_NONE 10
-#define STICKY_NONE 10
-
-#define MAX_TICKTIME 0.0025
+#define MAX_TICKTIME 0.001666
 #define TICKTIME_AVGFILT 0.05
 #define SCALEFACT_AVGFILT 5.0
 
@@ -43,7 +31,15 @@
 
 #define DEFAULT_NUM_BALLS 1000
 
-#define MULTITHREAD false
+#define DIA_SMALL 0
+#define DIA_MED 1
+#define DIA_LARGE 2
+
+#define DENSITY_LIGHT 0
+#define DENSITY_MED 1
+#define DENSITY_HEAVY 2
+
+#define MULTITHREAD true
 
 static std::mutex pauseMutex1;
 static std::mutex pauseMutex2;
@@ -146,7 +142,7 @@ private:
 				std::cout	<< ", xMin, xMax, yMin, yMax: " << particles->ballV[i]->quadResidence->xMin << "," << particles->ballV[i]->quadResidence->xMax << "," << particles->ballV[i]->quadResidence->yMin << "," << particles->ballV[i]->quadResidence->yMax << "\n";
 				particles->ballV[i]->updateBounds();
 				std::cout << "\t\t\txMin, xMax, yMin, yMax: " << particles->ballV[i]->xMin << "\t" << particles->ballV[i]->xMax << "\t" << particles->ballV[i]->yMin << "\t" << particles->ballV[i]->yMax << "\n";
-				std::cout << "\tBall points to Quad Residence: " << ((particles->ballV[i]->quadResidence->checkIfResident(particles->ballV[i]->getID(), false))?"True":"False") << "\n";
+				std::cout << "\t\tBall points to Quad Residence: " << ((particles->ballV[i]->quadResidence->checkIfResident(particles->ballV[i]->getID(), false))?"True":"False") << "\n";
 			}
 			else {
 				std::cout << "Inactive\n";
@@ -217,30 +213,10 @@ private:
 		scaleFactorM = scaleAdjustment->GetValue();
 	}
 	void diameterComboFunc() {
-		switch(diameterCombo->GetSelectedItem()) {
-			case 0:
-				input->newBallDia = DIA_SMALL;
-				break;
-			case 1:
-				input->newBallDia = DIA_MED;
-				break;
-			case 2:
-				input->newBallDia = DIA_LARGE;
-				break;
-		}
+		input->newBallDia = diameterCombo->GetSelectedItem();
 	}
 	void densityComboFunc() {
-		switch(densityCombo->GetSelectedItem()) {
-			case 0:
-				input->newBallDensity = DENSITY_LIGHT;
-				break;
-			case 1:
-				input->newBallDensity = DENSITY_MED;
-				break;
-			case 2:
-				input->newBallDensity = DENSITY_HEAVY;
-				break;
-		}
+		input->newBallDensity = densityCombo->GetSelectedItem();
 	}
 	
 	////////////////////
@@ -257,7 +233,7 @@ private:
 		guiWindow->SetRequisition(requisition);
 		mainWindow = new sf::RenderWindow(sf::VideoMode(resX + requisition.x, resY), 
 			"Particles!", sf::Style::Titlebar|sf::Style::Close, 
-			sf::ContextSettings( 24, 8, 8, 3, 0)); // Set openGL parameters
+			sf::ContextSettings(24, 8, 8, 3, 0)); // Set openGL parameters
 		
 		//mainWindow->setFramerateLimit(60);
 		mainWindow->setVerticalSyncEnabled(true);
@@ -474,6 +450,7 @@ public:
 	
 	Simulation() {
 		srand(static_cast<unsigned>(time(0)));
+		loadParams();
 	}
 
 	~Simulation() {
@@ -507,7 +484,7 @@ public:
 		particles->boundWalls = true;
 		particles->boundFloor = true;
 		
-		particles -> createInitBalls(DEFAULT_NUM_BALLS, DIA_SMALL, DENSITY_MED);
+		particles->createInitBalls(DEFAULT_NUM_BALLS, DIA_SMALL, DENSITY_MED);
 		
 		/*
 		// Open file and read values
@@ -606,7 +583,7 @@ public:
 		*/
 	}
 		
-	void launch() {	
+	void launch() {
 		running = true;
 		*threadsPaused = false;
 		drawThread = new std::thread(&Simulation::draw, this);
@@ -641,13 +618,17 @@ public:
 	void draw() {
 		initGUI();
 		initSFML();
-		
+				
 		sf::Vertex menuDivider[] = {
 			sf::Vertex(sf::Vector2f(resX, 0)),
 			sf::Vertex(sf::Vector2f(resX, resY))
 		};
 		
+		clockD.restart();
+		
 		while (mainWindow->isOpen()) {
+		
+			std::cout << "1\n";
 		
 			elapsedTimeD = clockD.restart();
 			frameRateD = 0.05*(1.0/elapsedTimeD.asSeconds()) + frameRateD*(1.0 - 0.05);
@@ -683,15 +664,21 @@ public:
 						break;
 				}
 			}
+			
+			std::cout << "2\n";
 						
 			input->update();
-			guiWindow->Update(1.0);
-			mainWindow->clear();
 			
+			scaleBar->SetFraction(scaleFactor);
+			guiWindow->Update(1.0);
+			
+			mainWindow->clear();
 			
 			particles->draw(mainWindow);
 			input->draw();
 			mainWindow->draw(menuDivider, 2, sf::Lines);
+			
+			std::cout << "3\n";
 			
 			// Draw text/gui
 			if (debugRead) {
@@ -705,7 +692,7 @@ public:
 				mainWindow->draw(fps);
 			}
 			
-			scaleBar->SetFraction(scaleFactor);
+			std::cout << "4\n";
 			
 			sfguiW.Display(*mainWindow);
 			
@@ -718,16 +705,22 @@ public:
 	void calcPhysics1() {
 		std::unique_lock<std::mutex> lock1(pauseMutex1);
 		
+		clockP.restart();
+		
 		if (MULTITHREAD) {
 			while(running){
 				if (*threadsPaused) {
 					pauseCV1.wait(lock1);
 					clockP.restart();
 				}
-			
+				
+				std::cout << "5\n";
+							
 				*finishFlag1 = false;
 				particles->quadSortParticles(0, *loadBalance1);
 				*finishFlag1 = true;
+				
+				std::cout << "6\n";
 				
 				rendezvous1.wait();
 				
@@ -735,10 +728,13 @@ public:
 				particles->quadCollideParticles(0, *loadBalance2);
 				*finishFlag2 = true;
 				
+				std::cout << "7\n";
+				
 				rendezvous2.wait();
 				
 				*finishFlag3 = false;
 				particles->addPhysics(0, *loadBalance3);
+				particles->cleanQuad();
 				
 				{ // Timekeeping
 					elapsedTimeP = clockP.restart();
@@ -756,8 +752,10 @@ public:
 					frameRateP = 1.0/tickTime;
 				}
 				
+				std::cout << tickTime << "\n";
+				
 				*finishFlag3 = true;
-
+				
 				rendezvous3.wait();
 			}
 		}

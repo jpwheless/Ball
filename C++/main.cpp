@@ -5,16 +5,13 @@
 // Load params from file and start simulation
 int main() {
 	z::Simulation sim = z::Simulation();
-	sim.loadParams();
 	sim.launch();
 }
 // ** To do **
 // Fix stickyness parkinsons
 // Fix boundary/no boundary particle deletion
-// Add 
 // Add 3 classes each of density, size, and stickyness for particles
 // Add an icon for the program
-// Optimize collision detection
 // Display current time scale and other stats in menu bar
 // Save/reload current state
 // Change properties of BHs after creation
@@ -24,6 +21,8 @@ int main() {
 // Display what the current function/modifier does
 // Allow for different displays/views (Density, velocity, force)
 // Limit mouse travel while dragging of time scale slider
+// Implement vectored drag to replace the rebound efficiency
+// Add rotation to particles
 
 
 // ** Done **
@@ -46,3 +45,4 @@ int main() {
 // Rename "Stop Particles" button
 // Label the new particle properties dropdown better
 // Fix spring rates on densities to eliminate craziness at low framerates
+// Optimize collision detection

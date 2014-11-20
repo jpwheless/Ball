@@ -4,10 +4,16 @@
 #define DRAG_FILT 10.0
 
 
+#define STICKY_NONE 10
+#define STICKY_NONE 10
+#define STICKY_NONE 10
+
 #define BASE_SPR_RATE 50000.0
 #define DEFAULT_REB_EFF 0.9
-#define BASE_ATTR_RATE 25000.0
+#define BASE_ATTR_RATE 50000.0
 #define DEFAULT_ATTR_RAD 5.0
+
+#define constrain(amt,low,high) ((amt)<(low)?(low):((amt)>(high)?(high):(amt)))
 
 #include <SFML/Graphics.hpp>
 #include "quad.hpp"
@@ -40,13 +46,16 @@ public:
 	static int *resX;
 	static int *resY;
 	
+	static const double densityTable[];
+	static const double diameterTable[];
+	
 	Quad *quadResidence;
 	
-	Ball(double, double);	
+	Ball(int, int);	
 	void update();
 	void setPosition(double, double);
-	void setSize(double);
-	void setMass(double);
+	void setSize(int);
+	void setMass(int);
 	void setColor(int, int, int);
 	void setID();
 	unsigned long int getID();

@@ -4,12 +4,10 @@
 #include <vector>
 #include <cstddef>
 #include <iostream>
-#include <mutex>
+
+#include "spinlock.hpp"
 
 #define MAX_NULLS 10
-
-//#include "particles.hpp"
-//#include "ball.hpp"
 
 namespace z {
 
@@ -32,13 +30,11 @@ public:
 	double yMin;
 	double yMax;
 	bool tooManyNulls;
+	SpinLock writingLock;
 		
 	static Particles *particles;
 	
 	Quad(Quad*, unsigned int, unsigned int, unsigned int, double, double, double, double);
-	~Quad() {
-		//for (int i = 0; i <= 3; i++) delete childQuad[i];
-	}
 	bool sortParticle(Ball*);
 	void cleanResidentList();
 	void collideParticles(Ball*, bool);

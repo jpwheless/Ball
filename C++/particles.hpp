@@ -67,9 +67,9 @@ public:
 	///////////////////////
 	// Particle Creation //
 	///////////////////////
-	void createInitBalls(unsigned int, double, double);
-	void createCloud(double, double, double, double, double, double, double, bool, bool);
-	int createParticle(double, double, double, double, double, double, bool, bool);
+	void createInitBalls(unsigned int, int, int);
+	void createCloud(double, double, double, double, double, int, int, bool, bool);
+	int createParticle(double, double, double, double, int, int, bool, bool);
 	///////////////////////////
 	// Particle Manipulation //
 	///////////////////////////

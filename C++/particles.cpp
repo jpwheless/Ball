@@ -40,12 +40,11 @@ namespace z {
 	///////////////////////
 
 	// Populate the window with balls in random locations
-	void Particles::createInitBalls(unsigned int numBalls, double ballDia, double ballDensity) {
+	void Particles::createInitBalls(unsigned int numBalls, int ballDia, int ballDensity) {
 		// Create number of starting balls at random locations
 		for (unsigned int i = 0; i < numBalls; i++ ) {
 			z::Ball *ball;
 			ball = new Ball(ballDia, ballDensity);
-			ball->setColor(rand()%255, rand()%255, rand()%255);
 			
 			double xPos, yPos;
 			int tryCount = 0;
@@ -74,7 +73,7 @@ namespace z {
 
 	// Create a spherical cloud of particles
 	void Particles::createCloud(double x, double y, double rad, double vel, double dir,
-										double ballDia, double ballDensity, bool stationary, bool ovrWrite) {
+										int ballDia, int ballDensity, bool stationary, bool force) {
 		std::vector<int> list;
 		int tempListPos;
 		
@@ -87,14 +86,14 @@ namespace z {
 			if (j%2) xIt = x + ballDia*cos(PI60);
 			else xIt = x;
 			while (sqrt(pow(xIt - x, 2.0) + pow(yIt - y, 2.0)) < rad) {
-				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, ballDensity, true, ovrWrite);
+				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, ballDensity, true, force);
 				if (tempListPos >= 0) list.push_back(tempListPos);
 				xIt += ballDia;
 			}
 			if (j%2) xIt = x - ballDia*cos(PI60);
 			else xIt = x - ballDia;
 			while (sqrt(pow(xIt - x, 2.0) + pow(yIt - y, 2.0)) < rad) {
-				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, ballDensity, true, ovrWrite);
+				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, ballDensity, true, force);
 				if (tempListPos >= 0) list.push_back(tempListPos);
 				xIt -= ballDia;
 			}
@@ -112,14 +111,14 @@ namespace z {
 	
 	// Singular particle creation with collision checking
 	int Particles::createParticle(double xPos, double yPos, double vel, double dir,
-											double ballDia, double ballDensity, bool stationary, bool ovrWrite) {
+											int ballDia, int ballDensity, bool stationary, bool force) {
 
-		double radius = ballDia/2.f;
+		double radius = Ball::diameterTable[((ballDia)<(0)?(0):((ballDia)>(2)?(2):(ballDia)))]/2.0;
 		bool collision = false;
 		if (xPos > *resX - radius || xPos < radius || yPos > *resY - radius || yPos < radius) {
 			collision = true;
 		}
-		else if (!ovrWrite) {
+		else if (!force) {
 			for (unsigned int j = 0; j < ballV.size(); j++) {
 				if (ballV[j]->alive) {
 					if (sqrt(pow(xPos - ballV[j]->x, 2.0) + pow(yPos - ballV[j]->y, 2.0)) + 0.001 < radius + ballV[j]->radius) {
@@ -148,7 +147,6 @@ namespace z {
 			if (inactiveBall) {
 				ballV[i]->setSize(ballDia);
 				ballV[i]->setMass(ballDensity);
-				ballV[i]->setColor(rand()%255, rand()%255, rand()%255);
 				ballV[i]->setPosition(xPos, yPos);
 				ballV[i]->alive = true;
 				ballV[i]->stationary = stationary;
@@ -157,7 +155,6 @@ namespace z {
 			else {
 				z::Ball *ball;
 				ball = new Ball(ballDia, ballDensity);
-				ball->setColor(std::rand()%255, std::rand()%255, std::rand()%255);
 				ball->setPosition(xPos, yPos);
 				ball->stationary = stationary;
 				quadTree->addParticle(ball, true);
@@ -447,25 +444,25 @@ namespace z {
 										*(centerDist - dist)*(*tickTime);
 			double forceVect;
 			
-			// If ball centers collide, then average their momentum
+			// If ball centers collide, then average their momentum in an inelastic collision
 			//(((ballA->x < ballB->x && ballA->xVel < ballB->xVel) ||
 			//		(ballA->x > ballB->x && ballA->xVel > ballB->xVel))
 			if (dist < centerDist*0.2) {
 				if((ballA->x < ballB->x && ballA->xVel > ballB->xVel) ||
 					(ballA->x > ballB->x && ballA->xVel < ballB->xVel)) {
 					
-					double momentum = (ballA->xVel*ballA->mass + ballB->xVel*ballB->mass)/2.0;
+					double velocity = (ballA->xVel*ballA->mass + ballB->xVel*ballB->mass)/(ballA->mass + ballB->mass);
 					
-					ballA->xVel = momentum/ballA->mass;
-					ballB->xVel = momentum/ballB->mass;
+					ballA->xVel = velocity;
+					ballB->xVel = velocity;
 				}
 				if((ballA->y < ballB->y && ballA->yVel > ballB->yVel) ||
 					(ballA->y > ballB->y && ballA->yVel < ballB->yVel)) {
 					
-					double momentum = (ballA->yVel*ballA->mass + ballB->yVel*ballB->mass)/2.0;
+					double velocity = (ballA->yVel*ballA->mass + ballB->yVel*ballB->mass)/(ballA->mass + ballB->mass);
 					
-					ballA->yVel = momentum/ballA->mass;
-					ballB->yVel = momentum/ballB->mass;
+					ballA->yVel = velocity;
+					ballB->yVel = velocity;
 				}									
 			}
 			forceVect = ((ballA->x - ballB->x)/dist)*force*

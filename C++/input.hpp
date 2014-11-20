@@ -44,8 +44,7 @@ public:
 	double bhRad;
 	double bhGrav;
 	
-	double newBallDia, newBallSprRate;
-	double newBallAttrRad, newBallDensity;
+	int newBallDia, newBallDensity;
 	
 	InteractionSetting bhIinteract;
 	

@@ -2,13 +2,12 @@
 
 namespace z {
 
-	Ball::Ball(double ballDia, double ballDensity) {		
+	Ball::Ball(int ballDia, int ballDensity) {		
 		alive = true;
 		stationary = false;
 		x = y = xVel = yVel = 0;
 		setSize(ballDia);
 		setMass(ballDensity);
-		setColor(255, 255, 255);
 		
 		quadResidence = NULL;
 		
@@ -55,7 +54,7 @@ namespace z {
 		}
 	}
 
-	void Ball::setPosition( double xIn, double yIn ){
+	void Ball::setPosition(double xIn, double yIn){
 		x = xIn;
 		y = yIn;
 		xMove = xIn;
@@ -63,20 +62,37 @@ namespace z {
 		ballShape.setPosition(x - radius, y - radius);
 	}
 	
-	void Ball::setSize(double diameter){
-		this->diameter = diameter;
+	void Ball::setSize(int diameterClass){
+		diameterClass = constrain(diameterClass, 0, 2);
+		diameter = diameterTable[diameterClass];
+		
 		radius = diameter/2.0;
 		ballShape.setRadius(radius);
 	}
 	
-	void Ball::setMass(double density) {
+	void Ball::setMass(int densityClass) {
+		densityClass = constrain(densityClass, 0, 2);
+		
 		double area = 3.14159265359*pow(radius, 2.0);
-		mass = area*(density/78.54);
-		springRate = BASE_SPR_RATE*density;
+		mass = area*(densityTable[densityClass]/78.54);
+		springRate = BASE_SPR_RATE*densityTable[densityClass];
 		reboundEfficiency = DEFAULT_REB_EFF;
 		
-		attrRate = BASE_ATTR_RATE*pow(radius, 2.0); // Convert to center attr rate for physics
+		// Convert to center attr rate for physics
+		attrRate = BASE_ATTR_RATE*pow(radius, 2.0)*densityTable[densityClass]; 
 		attrRad = DEFAULT_ATTR_RAD;
+		
+		switch (densityClass) {
+			case 0:
+				setColor(170 + rand()%85, 170 + rand()%85, 170 + rand()%85);
+				break;
+			case 1:
+				setColor(85 + rand()%85, 85 + rand()%85, 85 + rand()%85);
+				break;
+			case 2:
+				setColor(rand()%85, rand()%85, rand()%85);
+				break;
+		}
 	}
 		
 	void Ball::setColor(int r, int g, int b) {
@@ -112,4 +128,8 @@ namespace z {
 	double *Ball::tickTime;
 	int *Ball::resX;
 	int *Ball::resY;
+	
+	const double Ball::densityTable[] = {0.25, 1.0, 4.0};
+	const double Ball::diameterTable[] = {10.0, 20.0, 40.0};
+	
 }
