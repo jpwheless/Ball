@@ -3,6 +3,10 @@
 
 #include <vector>
 #include <cstddef>
+#include <iostream>
+#include <mutex>
+
+#define MAX_NULLS 10
 
 //#include "particles.hpp"
 //#include "ball.hpp"
@@ -27,20 +31,24 @@ public:
 	double xMax;
 	double yMin;
 	double yMax;
-	
+	bool tooManyNulls;
+		
 	static Particles *particles;
 	
 	Quad(Quad*, unsigned int, unsigned int, unsigned int, double, double, double, double);
 	~Quad() {
 		//for (int i = 0; i <= 3; i++) delete childQuad[i];
 	}
-	bool sortParticle(unsigned long int );
+	bool sortParticle(Ball*);
+	void cleanResidentList();
 	void collideParticles(Ball*, bool);
 	bool addParticle(Ball*, bool);
+	bool checkIfResident(unsigned long int, bool);
 	bool trickleParticle(Ball*, bool);
 	bool moveToGrandparent(Ball*);
 	bool movetoParent(Ball*);
 	bool moveToChild(unsigned int, Ball*);
+	void printParams();
 };
 }
 

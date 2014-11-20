@@ -11,9 +11,19 @@ int main() {
 // ** To do **
 // Fix stickyness parkinsons
 // Fix boundary/no boundary particle deletion
+// Add 
 // Add 3 classes each of density, size, and stickyness for particles
 // Add an icon for the program
 // Optimize collision detection
+// Display current time scale and other stats in menu bar
+// Save/reload current state
+// Change properties of BHs after creation
+// Interpolate during painting
+//	Draw in straight lines, too
+// Rename "Control Blackhole" function
+// Display what the current function/modifier does
+// Allow for different displays/views (Density, velocity, force)
+// Limit mouse travel while dragging of time scale slider
 
 
 // ** Done **
@@ -33,3 +43,6 @@ int main() {
 // Add pause/resume button
 // Add manual speed scaling (percentage)
 // Add collision check for bh into particle addition function
+// Rename "Stop Particles" button
+// Label the new particle properties dropdown better
+// Fix spring rates on densities to eliminate craziness at low framerates

@@ -24,9 +24,9 @@
 #define DIA_MED 20.0
 #define DIA_LARGE 40.0
 
-#define DENSITY_LIGHT 0.25/78.54
-#define DENSITY_MED 1.0/78.54
-#define DENSITY_HEAVY 4.0/78.54
+#define DENSITY_LIGHT 0.25
+#define DENSITY_MED 1.0
+#define DENSITY_HEAVY 4.0
 
 #define STICKY_NONE 10
 #define STICKY_NONE 10
@@ -42,11 +42,8 @@
 #define DEFAULT_LIN_GRAV 1000.0
 
 #define DEFAULT_NUM_BALLS 1000
-#define DEFAULT_BALL_DIA 10.0
-#define BASE_BALL_SPR_RATE 50000.0
-#define DEFAULT_BALL_REB_EFF 0.9
-#define BASE_BALL_ATTR_RATE 25000.0
-#define DEFAULT_BALL_ATTR_RAD 5.0
+
+#define MULTITHREAD false
 
 static std::mutex pauseMutex1;
 static std::mutex pauseMutex2;
@@ -107,11 +104,14 @@ private:
 	
 	z::SpinningBarrier rendezvous1 = z::SpinningBarrier(2);
 	z::SpinningBarrier rendezvous2 = z::SpinningBarrier(2);
+	z::SpinningBarrier rendezvous3 = z::SpinningBarrier(2);
 			
 	std::atomic<int>* loadBalance1 = new std::atomic<int>;
 	std::atomic<int>* loadBalance2 = new std::atomic<int>;
+	std::atomic<int>* loadBalance3 = new std::atomic<int>;
 	std::atomic<bool>* finishFlag1 = new std::atomic<bool>;
 	std::atomic<bool>* finishFlag2 = new std::atomic<bool>;
+	std::atomic<bool>* finishFlag3 = new std::atomic<bool>;
 	std::atomic<bool>* threadsPaused = new std::atomic<bool>;
 
 	///////////////////
@@ -137,21 +137,23 @@ private:
 		particles->boundWalls = cbBoundWalls->IsActive();
 	}
 	void buttonDebug() {
-		for (int i = 0; i < particles->ballV.size(); i++) {
-			std::cout << "Particle " << i << ": ";
+		for (unsigned int i = 0; i < particles->ballV.size(); i++) {
+			std::cout << "Particle " << particles->ballV[i]->getID() << ": ";
 			if (particles->ballV[i]->alive) {
 				std::cout << "Vel = " << sqrt(pow(particles->ballV[i]->xVel, 2.0) + pow(particles->ballV[i]->yVel, 2.0));
 				std::cout <<", x = " << particles->ballV[i]->x << ", y = " << particles->ballV[i]->y << "\n\tLevel: ";
-				std::cout << particles->ballV[i]->quadResidence->level << ", Parent: " << particles->ballV[i]->quadResidence->parentQuad;
+				std::cout << particles->ballV[i]->quadResidence->level << ", ChildNum: " << particles->ballV[i]->quadResidence->childNum;
 				std::cout	<< ", xMin, xMax, yMin, yMax: " << particles->ballV[i]->quadResidence->xMin << "," << particles->ballV[i]->quadResidence->xMax << "," << particles->ballV[i]->quadResidence->yMin << "," << particles->ballV[i]->quadResidence->yMax << "\n";
-				double boundArray[4]; // xMin, xMax, yMin, yMax
-				particles->ballV[i]->getBounds(boundArray);
-				std::cout << "xMin, xMax, yMin, yMax: " << boundArray[0] << "," << boundArray[1] << "," << boundArray[2] << "," << boundArray[3] << "\n";
+				particles->ballV[i]->updateBounds();
+				std::cout << "\t\t\txMin, xMax, yMin, yMax: " << particles->ballV[i]->xMin << "\t" << particles->ballV[i]->xMax << "\t" << particles->ballV[i]->yMin << "\t" << particles->ballV[i]->yMax << "\n";
+				std::cout << "\tBall points to Quad Residence: " << ((particles->ballV[i]->quadResidence->checkIfResident(particles->ballV[i]->getID(), false))?"True":"False") << "\n";
 			}
 			else {
 				std::cout << "Inactive\n";
 			}
 		}
+		std::cout << "\n";
+		particles->quadTree->printParams();
 		std::cout << "\n";
 	}
 	void buttonPause() {
@@ -293,9 +295,11 @@ private:
 		guiWindow = sfg::Window::Create();
 		guiWindow->SetStyle(guiWindow->GetStyle() ^ sfg::Window::TITLEBAR);
 		guiWindow->SetStyle(guiWindow->GetStyle() ^ sfg::Window::RESIZE);
+		
 		auto boxMain = sfg::Box::Create(sfg::Box::Orientation::VERTICAL, 5.0);
 		auto boxSim = sfg::Box::Create(sfg::Box::Orientation::VERTICAL, 5.0);
 		auto boxParam = sfg::Box::Create(sfg::Box::Orientation::VERTICAL, 5.0);
+		auto boxParticles = sfg::Box::Create(sfg::Box::Orientation::VERTICAL, 5.0);
 		auto boxMouse = sfg::Box::Create(sfg::Box::Orientation::VERTICAL, 5.0);
 		
 		auto label1 = sfg::Label::Create();
@@ -306,13 +310,26 @@ private:
 		label3->SetText("Time Scaling (Actual)");
 		auto label4 = sfg::Label::Create();
 		label4->SetText("Time Scaling (Max)");
+		auto label5 = sfg::Label::Create();
+		label5->SetText("New Particles");
 		auto instructions = sfg::Label::Create();
 		instructions->SetText("Use the scroll wheel along with CTRL or SHIFT to modify mouse functions.");
 		instructions->SetLineWrap(true);
+		
+		auto alignment1 = sfg::Alignment::Create();
+		alignment1->SetScale(sf::Vector2f(0.0f, 0.0f ));
+		alignment1->SetAlignment(sf::Vector2f(0.0f, .0f));
+		auto alignment2 = sfg::Alignment::Create();
+		alignment2->SetScale(sf::Vector2f(0.0f, 0.0f ));
+		alignment2->SetAlignment(sf::Vector2f(0.0f, .0f));
+		auto alignment3 = sfg::Alignment::Create();
+		alignment3->SetScale(sf::Vector2f(0.0f, 0.0f ));
+		alignment3->SetAlignment(sf::Vector2f(0.0f, .0f));
 
 		auto separatorh1 = sfg::Separator::Create(sfg::Separator::Orientation::HORIZONTAL);
 		auto separatorh2 = sfg::Separator::Create(sfg::Separator::Orientation::HORIZONTAL);
 		auto separatorh3 = sfg::Separator::Create(sfg::Separator::Orientation::HORIZONTAL);
+		auto separatorh4 = sfg::Separator::Create(sfg::Separator::Orientation::HORIZONTAL);
 		
 		// Button functions
 		cbCollision = sfg::CheckButton::Create("Collision");
@@ -337,17 +354,17 @@ private:
 		bPause->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonPause, this));
 		
 		bDebug = sfg::Button::Create("Debug Print");
-		bDebug->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonDebug, this));
+		bDebug->GetSignal(sfg::Widget::OnMouseLeftRelease).Connect(std::bind(&z::Simulation::buttonDebug, this));
 		
 		bClear = sfg::Button::Create("Clear Screen");
-		bClear->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonClear, this));
+		bClear->GetSignal(sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonClear, this));
 		
-		bStop = sfg::Button::Create("Stop Particles");
+		bStop = sfg::Button::Create("Zero Velocities");
 		bStop->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonStop, this));
 
 		scaleBar = sfg::ProgressBar::Create();
 		scaleScale = sfg::Scale::Create(sfg::Scale::Orientation::HORIZONTAL);
-		scaleScale->SetRequisition(sf::Vector2f(0.0, 20.0));
+		scaleScale->SetRequisition(sf::Vector2f(100.0, 20.0));
 		
 		scaleAdjustment = scaleScale->GetAdjustment();
 		scaleAdjustment->SetLower(0.01);
@@ -407,7 +424,9 @@ private:
 		boxSim->Pack(bClear);
 		boxSim->Pack(bStop);
 		boxSim->Pack(bDebug);
-		boxParam->Pack(label1);
+		
+		alignment2->Add(label1);
+		boxParam->Pack(alignment2, false, true);
 		boxParam->Pack(cbCollision);
 		boxParam->Pack(cbStickyness);
 		boxParam->Pack(cbGravity);
@@ -415,9 +434,13 @@ private:
 		boxParam->Pack(cbBoundWalls);
 		boxParam->Pack(cbBoundFloor);
 				
-		boxMouse->Pack(label2);
-		boxMouse->Pack(diameterCombo);
-		boxMouse->Pack(densityCombo);
+		alignment1->Add(label5);
+		boxParticles->Pack(alignment1, false, true);
+		boxParticles->Pack(diameterCombo);
+		boxParticles->Pack(densityCombo);
+		
+		alignment3->Add(label2);
+		boxMouse->Pack(alignment3, false, true);
 		boxMouse->Pack(mouseFuncErase);
 		boxMouse->Pack(mouseFuncDrag);
 		boxMouse->Pack(mouseFuncPaint);
@@ -431,8 +454,10 @@ private:
 		boxMain->Pack(separatorh1, false, true);
 		boxMain->Pack(boxParam, false, true);
 		boxMain->Pack(separatorh2, false, true);
-		boxMain->Pack(boxMouse, false, true);
+		boxMain->Pack(boxParticles, false, true);
 		boxMain->Pack(separatorh3, false, true);
+		boxMain->Pack(boxMouse, false, true);
+		boxMain->Pack(separatorh4, false, true);
 		boxMain->Pack(instructions, false, true);
 		
 		guiWindow->Add(boxMain);
@@ -475,10 +500,6 @@ public:
 																			
 		input->newBallDia = DIA_SMALL;
 		input->newBallDensity = DENSITY_MED;
-		input->newBallSprRate = BASE_BALL_SPR_RATE;
-		input->newBallRebEff = DEFAULT_BALL_REB_EFF;
-		input->newBallAttrRate = BASE_BALL_ATTR_RATE;
-		input->newBallAttrRad = DEFAULT_BALL_ATTR_RAD;
 
 		particles->particleCollisions = true;
 		particles->particleStickyness = false;
@@ -486,8 +507,7 @@ public:
 		particles->boundWalls = true;
 		particles->boundFloor = true;
 		
-		particles -> createInitBalls(DEFAULT_NUM_BALLS, DIA_SMALL, DENSITY_MED, BASE_BALL_SPR_RATE,
-																	DEFAULT_BALL_REB_EFF, BASE_BALL_ATTR_RATE, DEFAULT_BALL_ATTR_RAD);
+		particles -> createInitBalls(DEFAULT_NUM_BALLS, DIA_SMALL, DENSITY_MED);
 		
 		/*
 		// Open file and read values
@@ -591,10 +611,17 @@ public:
 		*threadsPaused = false;
 		drawThread = new std::thread(&Simulation::draw, this);
 		calcPhysicsThread1 = new std::thread(&Simulation::calcPhysics1, this);
-		calcPhysicsThread2 = new std::thread(&Simulation::calcPhysics2, this);
-		
-		*loadBalance1 = particles->ballV.size() / 3.0;
-		*loadBalance2 = particles->ballV.size() / 2.0;
+		if (MULTITHREAD) {
+			calcPhysicsThread2 = new std::thread(&Simulation::calcPhysics2, this);
+			*loadBalance1 = particles->ballV.size() / 2.0;
+			*loadBalance2 = particles->ballV.size() / 2.0;
+			*loadBalance3 = particles->ballV.size() / 2.0;
+		}
+		else {
+			*loadBalance1 = 0;
+			*loadBalance2 = 0;
+			*loadBalance3 = 0;
+		}
 		
 		tickTime = 0.002; // Jump start to avoid physics glitches
 		tickTimeActual = tickTime;
@@ -605,7 +632,7 @@ public:
 						
 		drawThread->join();
 		calcPhysicsThread1->join();
-		calcPhysicsThread2->join();
+		if (MULTITHREAD) calcPhysicsThread2->join();
 	}
 	
 	/////////////
@@ -633,6 +660,9 @@ public:
 					case sf::Event::Closed:
 						mainWindow->close();
 						running = false;
+						*threadsPaused = false;
+						pauseCV1.notify_one();
+						pauseCV2.notify_one();
 						break;
 					case sf::Event::LostFocus:
 						input->windowFocused = false;
@@ -668,7 +698,7 @@ public:
 				std::string temp = std::to_string(scaleFactor);
 				temp.resize(4);
 				fps.setString(std::to_string((int)frameRateP) + "," + temp + "," + std::to_string((int)frameRateD) + "\n" + 
-											std::to_string(*loadBalance1) + "," + std::to_string(*loadBalance2)
+											std::to_string(*loadBalance1) + "," + std::to_string(*loadBalance2) + "," + std::to_string(*loadBalance3)
 											+ "\n" + std::to_string(particles->ballV.size()) + "," + std::to_string(particles->ballAlive)
 											+ "\n" + std::to_string(particles->bhV.size()) + "," + std::to_string(particles->bhAlive)
 											+ "\n" + std::to_string((int)particles->maxParticleVel));
@@ -687,40 +717,78 @@ public:
 	// Handle first portion of particles
 	void calcPhysics1() {
 		std::unique_lock<std::mutex> lock1(pauseMutex1);
-		while(running){
-			if (*threadsPaused) {
-				pauseCV1.wait(lock1);
-				clockP.restart();
-			}
 		
-			*finishFlag1 = false;
-			particles->quadSortParticles(0, *loadBalance1);
-			particles->quadCollideParticles(0, *loadBalance1);
-			*finishFlag1 = true;
+		if (MULTITHREAD) {
+			while(running){
+				if (*threadsPaused) {
+					pauseCV1.wait(lock1);
+					clockP.restart();
+				}
 			
-			rendezvous1.wait();
-			
-			*finishFlag2 = false;
-			particles->addPhysics(0, *loadBalance2);
-			*finishFlag2 = true;
-			
-			{ // Timekeeping
-				elapsedTimeP = clockP.restart();
+				*finishFlag1 = false;
+				particles->quadSortParticles(0, *loadBalance1);
+				*finishFlag1 = true;
 				
-				tickTimeActual = TICKTIME_AVGFILT*elapsedTimeP.asSeconds() + tickTimeActual*(1.0 - TICKTIME_AVGFILT);
-				tickTimeMax = std::min(DIA_SMALL/(2.0*particles->maxParticleVel), MAX_TICKTIME);
+				rendezvous1.wait();
 				
-				double tempScaleFactor =  std::min(tickTimeMax/tickTimeActual, scaleFactorM);
-				if (scaleFactor > tempScaleFactor) scaleFactor = tempScaleFactor;
-				else scaleFactor = SCALEFACT_AVGFILT*tickTimeActual*std::min(tickTimeMax/tickTimeActual, scaleFactorM)
-													 + scaleFactor*(1.0 - tickTimeActual*SCALEFACT_AVGFILT);
+				*finishFlag2 = false;
+				particles->quadCollideParticles(0, *loadBalance2);
+				*finishFlag2 = true;
 				
-				tickTime = tickTimeActual*scaleFactor;
+				rendezvous2.wait();
 				
-				frameRateP = 1.0/tickTime;
+				*finishFlag3 = false;
+				particles->addPhysics(0, *loadBalance3);
+				
+				{ // Timekeeping
+					elapsedTimeP = clockP.restart();
+					
+					tickTimeActual = TICKTIME_AVGFILT*elapsedTimeP.asSeconds() + tickTimeActual*(1.0 - TICKTIME_AVGFILT);
+					tickTimeMax = std::min(DIA_SMALL/(2.0*particles->maxParticleVel), MAX_TICKTIME);
+					
+					double tempScaleFactor =  std::min(tickTimeMax/tickTimeActual, scaleFactorM);
+					if (scaleFactor > tempScaleFactor) scaleFactor = tempScaleFactor;
+					else scaleFactor = SCALEFACT_AVGFILT*tickTimeActual*std::min(tickTimeMax/tickTimeActual, scaleFactorM)
+														 + scaleFactor*(1.0 - tickTimeActual*SCALEFACT_AVGFILT);
+					
+					tickTime = tickTimeActual*scaleFactor;
+					
+					frameRateP = 1.0/tickTime;
+				}
+				
+				*finishFlag3 = true;
+
+				rendezvous3.wait();
 			}
-						
-			rendezvous2.wait();
+		}
+		else {
+			while(running){
+				if (*threadsPaused) {
+					pauseCV1.wait(lock1);
+					clockP.restart();
+				}
+			
+				particles->quadSortParticles(0, particles->size());
+				particles->quadCollideParticles(0, particles->size());
+				particles->cleanQuad();
+				particles->addPhysics(0, particles->size());
+				
+				{ // Timekeeping
+					elapsedTimeP = clockP.restart();
+					
+					tickTimeActual = TICKTIME_AVGFILT*elapsedTimeP.asSeconds() + tickTimeActual*(1.0 - TICKTIME_AVGFILT);
+					tickTimeMax = std::min(DIA_SMALL/(2.0*particles->maxParticleVel), MAX_TICKTIME);
+					
+					double tempScaleFactor =  std::min(tickTimeMax/tickTimeActual, scaleFactorM);
+					if (scaleFactor > tempScaleFactor) scaleFactor = tempScaleFactor;
+					else scaleFactor = SCALEFACT_AVGFILT*tickTimeActual*std::min(tickTimeMax/tickTimeActual, scaleFactorM)
+														 + scaleFactor*(1.0 - tickTimeActual*SCALEFACT_AVGFILT);
+					
+					tickTime = tickTimeActual*scaleFactor;
+					
+					frameRateP = 1.0/tickTime;
+				}
+			}
 		}
 	}
 	
@@ -733,23 +801,28 @@ public:
 			}
 		
 			particles->quadSortParticles(*loadBalance1, particles->size());
-			particles->quadCollideParticles(*loadBalance1, particles->size());
-			
-			// If thread #1 has finished first, then increase its load
-			if (*finishFlag1 == true) *loadBalance1 = *loadBalance1 + 1;
-			else *loadBalance1 = *loadBalance1 - 1;
-			if (*loadBalance1 < 0) *loadBalance1 = 0;
-			else if (*loadBalance1 > particles->size()) *loadBalance1 = particles->size();
+			if (*finishFlag1 == true) {
+				 if (*loadBalance1 < particles->size() - 1) *loadBalance1 = *loadBalance1 + 1;
+			}
+			else if (*loadBalance1 > 0) *loadBalance1 = *loadBalance1 - 1;
 			
 			rendezvous1.wait();
-			particles->addPhysics(*loadBalance2, particles->size());
 			
-			if (*finishFlag2 == true) *loadBalance2 = *loadBalance2 + 1;
-			else *loadBalance2 = *loadBalance2 - 1;
-			if (*loadBalance2 < 0) *loadBalance2 = 0;
-			else if (*loadBalance2 > particles->size()) *loadBalance2 = particles->size();
-						
+			particles->quadCollideParticles(*loadBalance2, particles->size());
+			if (*finishFlag2 == true) {
+				 if (*loadBalance2 < particles->size() - 1) *loadBalance2 = *loadBalance2 + 1;
+			}
+			else if (*loadBalance2 > 0) *loadBalance2 = *loadBalance2 - 1;
+
 			rendezvous2.wait();
+			
+			particles->addPhysics(*loadBalance3, particles->size());
+			if (*finishFlag3 == true) {
+				 if (*loadBalance3 < particles->size() - 1) *loadBalance3 = *loadBalance3 + 1;
+			}
+			else if (*loadBalance3 > 0) *loadBalance3 = *loadBalance3 - 1;
+						
+			rendezvous3.wait();
 		}
 	}
 

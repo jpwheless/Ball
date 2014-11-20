@@ -15,9 +15,16 @@ namespace z {
 		
 		if (thisLevel == 0) {
 			parentQuad = NULL;
-			childNum = 0;
+			this->childNum = 0;
 		}
-		else	parentQuad = parentQ;
+		else	{
+			parentQuad = parentQ;
+			this->childNum = childNum;
+		}
+		
+		residentList.reserve(MAX_PARTICLES);
+		
+		tooManyNulls = false;
 		
 		if (thisLevel < maxLevel) {
 			double xRange = (xMax - xMin)/2.0;
@@ -32,23 +39,29 @@ namespace z {
 			// Bottom right
 			childQuad[3] = new Quad(this, level + 1, maxLevel, 3, xMin+xRange, xMax, yMin+yRange, yMax);
 		}
+		else for (int i = 0; i <= 3; i++) childQuad[i] = NULL;
 	}
 		
 	// Pass unique ID of particle that resides in this quad
 	// Particle will be moved to correct location in tree
-	bool Quad::sortParticle(unsigned long int pID) {
+	bool Quad::sortParticle(Ball* sortedParticle) {
 		bool found = false;
-		int i;
+		unsigned int pID = sortedParticle->getID();
+		unsigned int i;
 		for (i = 0; i < residentList.size() && !found; i++) {
-			if (residentList[i]->getID() == pID) {
-				if (trickleParticle(residentList[i], true)) { // Return true if particle is moved
+			if (residentList[i] != NULL && residentList[i]->getID() == pID) {
+				found = true;
+				if (trickleParticle(sortedParticle, true)) { // Return true if particle is moved
 					// This function may take some time to return
 					// Another thread may have reordered this residentList
 					// Make sure it's the right particle
-					if (residentList[i]->getID() == pID) residentList.erase(residentList.begin()+i);
+					if (residentList[i]->getID() == pID) 
+						residentList[i] = NULL;
 					else {
+						found = false;
 						for (i = 0; i < residentList.size() && !found; i++) {
-							if (residentList[i]->getID() == pID) residentList.erase(residentList.begin()+i);
+							if (residentList[i] != NULL && residentList[i]->getID() == pID) 
+								residentList[i] = NULL;
 						}
 					}
 				}
@@ -57,113 +70,178 @@ namespace z {
 		return found;
 	}
 	
-	// Search for particle collisions in all particles lower in the tree than passed particle
-	void Quad::collideParticles(Ball *particleA, bool resident) {
-		bool found = !resident;
-		if (resident) { // Find particle in resident list
-			int i;
-			for (i = 0; i < residentList.size() && !found; i++) {
-				if (residentList[i]->getID() == particleA->getID()) {
-					found = true;
-					i++;
-					// Collide all particles under it
-					for (; i < residentList.size(); i++) {
-						if (residentList[i]->alive) particles->collisonUpdate(particleA, residentList[i]);
-					}
+	void Quad::cleanResidentList() {
+		if (tooManyNulls) {
+			int frontSwap = 0;
+			int backSwap = residentList.size() - 1;
+			while (frontSwap < backSwap) {
+				while (frontSwap < residentList.size() && residentList[frontSwap] != NULL) frontSwap++; // Find dead ball
+				while (backSwap > 0 && residentList[backSwap] == NULL) {
+					backSwap--; // Find live ball
+					//std::cout << residentList.size() << "\t" << backSwap << "\n";
 				}
+				if (frontSwap < backSwap) std::swap(residentList[frontSwap],residentList[backSwap]); // Swap
+			}
+			
+			backSwap = residentList.size();
+			while (backSwap > 0) {
+				if (residentList[backSwap-1] == NULL) backSwap--;
+				else break;
+			}
+			if (backSwap < residentList.size()) {
+				//int eraseStart = (backSwap < 50)?50:backSwap;
+				residentList.erase(residentList.begin()+backSwap, residentList.end());
 			}
 		}
-		else {
-			for (int i = 0; i < residentList.size(); i++) {
-				if (residentList[i]->alive) particles->collisonUpdate(particleA, residentList[i]);
-			}
-		}
-		// Do not collide children if particle was supposed to be found and wasn't
-		if (found && level < maxLevel) {
-			for (int i = 0; i <= 3; i++) {
-				childQuad[i]->collideParticles(particleA, false);
-			}
-		}
+		if (level < maxLevel) for (int i = 0; i <= 3; i++) childQuad[i]->cleanResidentList();
 	}
 		
 	bool Quad::addParticle(Ball *movedParticle, bool checkBounds) {
-		// if sortedDown, bounds have been checked by parent
 		// if trickleParticle returns false, particle must be added to residents
 		if (!trickleParticle(movedParticle, checkBounds)) {
-			residentList.push_back(movedParticle);
+			unsigned int i = 0;
+			bool nullEntry = false;
+			for (; i < residentList.size() && !nullEntry; i++) {
+				if (residentList[i] == NULL) {
+					nullEntry = true;
+					break;
+				}
+			}
+			if (nullEntry) {
+				//if (residentList[i] == NULL) std::cout << "NULL\t";
+				//else std::cout << residentList[i] << "\t";
+				residentList[i] = movedParticle;
+				//std::cout << residentList[i] << "\n";
+			}
+			else {
+				residentList.push_back(movedParticle);
+				//std::cout << "no\n";
+			}
+			
 			movedParticle->quadResidence = this;
 		}
 		return true; // This can't not work, I guess
 	}
 	
+	// Search for particle collisions in all particles lower in the tree than passed particle
+	// Also does double-duty counting number of NULLs in residentList
+	void Quad::collideParticles(Ball *particleA, bool resident) {
+		bool found = !resident;
+		unsigned int nullCount = 0;
+		if (resident) { // Find particle in resident list
+			unsigned int i;
+			for (i = 0; i < residentList.size() && !found; i++) {
+				if (residentList[i] != NULL && residentList[i]->getID() == particleA->getID()) {
+					found = true;
+					i++;
+					// Collide all particles under it
+					for (; i < residentList.size(); i++) {
+						if (residentList[i] != NULL && residentList[i]->alive) 
+							particles->collisonUpdate(particleA, residentList[i]);
+					}
+				}
+				else nullCount++;
+			}
+		}
+		else {
+			for (unsigned int i = 0; i < residentList.size(); i++) {
+				if (residentList[i] != NULL && residentList[i]->alive)
+					particles->collisonUpdate(particleA, residentList[i]);
+			}
+		}
+		// Do not collide children if particle was supposed to be found and wasn't
+		if (found && level < maxLevel) {
+			for (unsigned int i = 0; i <= 3; i++) {
+				childQuad[i]->collideParticles(particleA, false);
+			}
+		}
+		if (nullCount > MAX_NULLS) tooManyNulls = true;
+	}
+	
+	bool Quad::checkIfResident(unsigned long int pID, bool deleteResident) {
+		bool found = false;
+		unsigned int i;
+		for (i = 0; i < residentList.size() && !found; i++) {
+			if (residentList[i] != NULL && residentList[i]->getID() == pID) {
+				found = true;
+				if (deleteResident) residentList[i] = NULL;
+			}
+		}
+		return found;
+	}
+
 	// Checks bounds and passes to correct Quad if necessary
 	// Return true if particle is moved
-	bool Quad::trickleParticle(Ball *newParticle, bool checkBounds) {
-		double boundArray[4]; // xMin, xMax, yMin, yMax
-		
-		newParticle->getBounds(boundArray);
-		
+	bool Quad::trickleParticle(Ball *movingParticle, bool checkBounds) {
+		movingParticle->updateBounds();
 		// Check if out of bounds
 		// Move to parent if so
-		if (checkBounds && level != 0) {
+		if (checkBounds && level > 0) {
 			switch (childNum) {
 				case 0: // Top left
-					if (boundArray[0] < xMin || boundArray[2] < yMin) {
-						return moveToGrandparent(newParticle);
+					if (movingParticle->xMin < xMin || movingParticle->yMin < yMin) {
+						return moveToGrandparent(movingParticle);
 					}
-					else if (boundArray[1] > xMax || boundArray[3] > yMax) {
-						return movetoParent(newParticle);
+					else if (movingParticle->xMax > xMax || movingParticle->yMax > yMax) {
+						return movetoParent(movingParticle);
 					}
 					break;
 				case 1: // Top right
-					if (boundArray[0] < xMin || boundArray[3] > yMax) {
-						return moveToGrandparent(newParticle);
+					if (movingParticle->xMin < xMin || movingParticle->yMax > yMax) {
+						return moveToGrandparent(movingParticle);
 					}
-					else if (boundArray[1] > xMax || boundArray[2] < yMin) {
-						return movetoParent(newParticle);
+					else if (movingParticle->xMax > xMax || movingParticle->yMin < yMin) {
+						return movetoParent(movingParticle);
 					}
 					break;
 				case 2: // Bottom left	
-					if (boundArray[0] < xMin || boundArray[3] > yMax) {
-						return moveToGrandparent(newParticle);
+					if (movingParticle->xMin < xMin || movingParticle->yMax > yMax) {
+						return moveToGrandparent(movingParticle);
 					}
-					else if (boundArray[1] > xMax || boundArray[2] < yMin) {
-						return movetoParent(newParticle);
+					else if (movingParticle->xMax > xMax || movingParticle->yMin < yMin) {
+						return movetoParent(movingParticle);
 					}
 					break;
 				case 3: // Bottom right
-					if (boundArray[1] > xMax || boundArray[3] > yMax) {
-						return moveToGrandparent(newParticle);
+					if (movingParticle->xMax > xMax || movingParticle->yMax > yMax) {
+						return moveToGrandparent(movingParticle);
 					}
-					else if (boundArray[0] < xMin || boundArray[2] < yMin) {
-						return movetoParent(newParticle);
+					else if (movingParticle->xMin < xMin || movingParticle->yMin < yMin) {
+						return movetoParent(movingParticle);
 					}
 					break;
 			}
 		}
-		// Particle is within bounds
-		// See if it needs moving to child
-		if (level < maxLevel) {
+		if (level < maxLevel) {  // Particle is within bounds - See if it needs moving to child
 			double xMid = xMin + (xMax - xMin)/2.0;
 			double yMid = yMin + (yMax - yMin)/2.0;
-			if (boundArray[1] < xMid) { // Left
-				if (boundArray[4] < yMid) { // Top
-					return moveToChild(0, newParticle);
+			if (movingParticle->yMax < yMid) { // Top
+				if (movingParticle->xMax < xMid) { // Left
+					return moveToChild(0, movingParticle);
 				}
-				else if (boundArray[3] > yMid) { // Bottom
-					return moveToChild(2, newParticle);
+				else if (movingParticle->xMin > xMid) { // Right
+					return moveToChild(1, movingParticle);
 				}
 			}
-			else if (boundArray[0] > xMid) { // Right
-				if (boundArray[4] < yMid) { // Top
-					return moveToChild(1, newParticle);
+			else if (movingParticle->yMin > yMid) { // Bottom
+				if (movingParticle->xMax < xMid) { // Left
+					return moveToChild(2, movingParticle);
 				}
-				else if (boundArray[3] > yMid) { // Bottom
-					return moveToChild(3, newParticle);
+				else if (movingParticle->xMin > xMid) { // Right
+					return moveToChild(3, movingParticle);
 				}
 			}
 		}
-		// Particle cannot be moved anywhere else
+		// Particle cannot be moved anywhere else		
+		
+		/*
+		std::cout << "\n";
+		std::cout << "ID: " << newParticle->getID() << ", Level: " << level << ", ChildNum: " << childNum << "\n";
+		std::cout << "Quad xMin, xMax, yMin, yMax: " << xMin << "\t" << xMax << "\t" << yMin << "\t" << yMax << "\n";
+		std::cout << "Ball xMin, xMax, yMin, yMax: " << boundArray[0] << "\t" << movingParticle->xMax << "\t" << movingParticle->yMin << "\t" << movingParticle->yMax << "\n";
+		std::cout << "\n";
+		*/
+		
 		return false;
 	}
 	
@@ -181,6 +259,23 @@ namespace z {
 	
 	bool Quad::moveToChild(unsigned int childNum, Ball *movedParticle) {
 		return childQuad[childNum]->addParticle(movedParticle, false);
+	}
+	
+	void Quad::printParams() {
+		std::cout << "Level: " << level << ", Child: " << childNum;
+		std::cout << ", xMin, xMax, yMin, yMax: " << xMin << "\t" << xMax << "\t" << yMin << "\t" << yMax << "\n";
+		std::cout << "\tResidents: \n";
+		for (unsigned int i = 0; i < residentList.size(); i++) {
+			if (residentList[i] != NULL) std::cout << "\t\t" << residentList[i]->getID() << "\n";
+			else std::cout << "\t\tNULL\n";
+		}
+		
+		if (level < maxLevel) {
+			childQuad[0]->printParams();
+			childQuad[1]->printParams();
+			childQuad[2]->printParams();
+			childQuad[3]->printParams();
+		}
 	}
 	
 	Particles *Quad::particles;

@@ -4,3 +4,5 @@ g++ -std=c++11 -LC:\MinGW\lib -IC:\MinGW\include -Ofast particles.cpp main.cpp b
 cd bin
 .\Particles.exe
 cd ..
+
+#-Wall

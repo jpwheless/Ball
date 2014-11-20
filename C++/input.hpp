@@ -45,7 +45,6 @@ public:
 	double bhGrav;
 	
 	double newBallDia, newBallSprRate;
-	double newBallRebEff, newBallAttrRate;
 	double newBallAttrRad, newBallDensity;
 	
 	InteractionSetting bhIinteract;
@@ -125,21 +124,17 @@ public:
 					if (paintOvr) {
 						if (mouseReleased && mouseX <= *resX) {
 							particles->deactivateCloud(mouseX, mouseY, mouseRad);
-							particles->createCloud(mouseX, mouseY, mouseRad, 0, 0, newBallDia, newBallDensity, newBallSprRate,
-																			newBallRebEff, newBallAttrRate, newBallAttrRad, false, true);
+							particles->createCloud(mouseX, mouseY, mouseRad, 0, 0, newBallDia, newBallDensity, false, true);
 						}
 					}
 					else if (sf::Mouse::isButtonPressed(sf::Mouse::Left) && mouseX <= *resX) {
-						particles->createCloud(mouseX, mouseY, mouseRad, 0, 0, newBallDia, newBallDensity, newBallSprRate,
-																		newBallRebEff, newBallAttrRate, newBallAttrRad, false, paintForce);
+						particles->createCloud(mouseX, mouseY, mouseRad, 0, 0, newBallDia, newBallDensity, false, paintForce);
 					}
 					break;
 				case 4: // Shoot
 					if (mouseReleased && mouseX <= *resX) {
 						particles->deactivateCloud(mouseX, mouseY, mouseRad);
-						particles->createCloud(mouseX, mouseY, mouseRad, shootVel, shootAng,
-																		newBallDia, newBallDensity, newBallSprRate, newBallRebEff, 
-																		newBallAttrRate, newBallAttrRad, false, false);
+						particles->createCloud(mouseX, mouseY, mouseRad, shootVel, shootAng, newBallDia, newBallDensity, false, false);
 					}
 					break;
 				case 5: // Place Blackhole

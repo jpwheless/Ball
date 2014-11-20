@@ -2,18 +2,17 @@
 
 namespace z {
 
-	Ball::Ball() {		
+	Ball::Ball(double ballDia, double ballDensity) {		
 		alive = true;
 		stationary = false;
 		x = y = xVel = yVel = 0;
-		setSize(10.0);
+		setSize(ballDia);
+		setMass(ballDensity);
 		setColor(255, 255, 255);
-		mass = 1.0;
 		
 		quadResidence = NULL;
 		
 		id = 0;
-		
 		setID();
 	}
 
@@ -64,22 +63,22 @@ namespace z {
 		ballShape.setPosition(x - radius, y - radius);
 	}
 	
-	void Ball::setSize(int diameter){
+	void Ball::setSize(double diameter){
 		this->diameter = diameter;
-		radius = diameter / 2.0;
+		radius = diameter/2.0;
 		ballShape.setRadius(radius);
 	}
 	
 	void Ball::setMass(double density) {
 		double area = 3.14159265359*pow(radius, 2.0);
-		mass = area*density;
+		mass = area*(density/78.54);
+		springRate = BASE_SPR_RATE*density;
+		reboundEfficiency = DEFAULT_REB_EFF;
+		
+		attrRate = BASE_ATTR_RATE*pow(radius, 2.0); // Convert to center attr rate for physics
+		attrRad = DEFAULT_ATTR_RAD;
 	}
-	
-	void Ball::setSticky(double attrRadT, double attrRateT) {
-		attrRate = attrRateT*pow(radius, 2.0); // Convert to center attr rate for physics
-		attrRad = attrRadT;
-	}
-	
+		
 	void Ball::setColor(int r, int g, int b) {
 		ballShape.setFillColor(sf::Color(r, g, b));
 	}
@@ -98,12 +97,12 @@ namespace z {
 	}
 	
 	// Fills array with xMin, xMax, yMin, yMax of bounding box
-	void Ball::getBounds(double boundArray[4]) {
+	void Ball::updateBounds() {
 		double dist = radius + ((*sticky) ? attrRad : 0.0);
-		boundArray[0] = x - dist;
-		boundArray[1] = x + dist;
-		boundArray[2] = y - dist;
-		boundArray[3] = y + dist;
+		xMin = x - dist;
+		xMax = x + dist;
+		yMin = y - dist;
+		yMax = y + dist;
 	}
 	
 	bool *Ball::boundCeiling;

@@ -3,6 +3,12 @@
 
 #define DRAG_FILT 10.0
 
+
+#define BASE_SPR_RATE 50000.0
+#define DEFAULT_REB_EFF 0.9
+#define BASE_ATTR_RATE 25000.0
+#define DEFAULT_ATTR_RAD 5.0
+
 #include <SFML/Graphics.hpp>
 #include "quad.hpp"
 
@@ -22,7 +28,7 @@ public:
 	double mass;
 	double springRate, reboundEfficiency;
 	double attrRad, attrRate;
-	double bound;
+	double xMin, xMax, yMin, yMax;
 	sf::CircleShape ballShape;
 	bool alive, stationary;
 	
@@ -36,16 +42,15 @@ public:
 	
 	Quad *quadResidence;
 	
-	Ball();	
+	Ball(double, double);	
 	void update();
 	void setPosition(double, double);
-	void setSize(int);
+	void setSize(double);
 	void setMass(double);
-	void setSticky(double, double);
 	void setColor(int, int, int);
 	void setID();
 	unsigned long int getID();
-	void getBounds(double boundArray[4]);
+	void updateBounds();
 };
 }
 

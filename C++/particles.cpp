@@ -13,7 +13,7 @@ namespace z {
 		linGravity = linGravityT;
 		
 		Quad::particles = this;
-		quadTree = new Quad(NULL, 0, 4, 0, 0, *resX, 0, *resY);
+		quadTree = new Quad(NULL, 0, LEVELS, 0, 0, *resX, 0, *resY);
 		
 		BlackHole::tickTime = tickTime;
 		
@@ -40,18 +40,12 @@ namespace z {
 	///////////////////////
 
 	// Populate the window with balls in random locations
-	void Particles::createInitBalls(int numBalls, double ballDia, double ballDensity, double springRate,
-											double rebEff, double attrRate, double attrRad) {
+	void Particles::createInitBalls(unsigned int numBalls, double ballDia, double ballDensity) {
 		// Create number of starting balls at random locations
-		for ( int i = 0; i < numBalls; i++ ) {
+		for (unsigned int i = 0; i < numBalls; i++ ) {
 			z::Ball *ball;
-			ball = new Ball();
-			ball->setSize(ballDia);
-			ball->setMass(ballDensity);
+			ball = new Ball(ballDia, ballDensity);
 			ball->setColor(rand()%255, rand()%255, rand()%255);
-			ball->springRate = springRate;
-			ball->reboundEfficiency = rebEff;
-			ball->setSticky(attrRad, attrRate);
 			
 			double xPos, yPos;
 			int tryCount = 0;
@@ -62,7 +56,7 @@ namespace z {
 				xPos = randDouble(ball->radius, *resX - ball->radius);
 				yPos = randDouble(ball->radius, *resY - ball->radius);
 				collision = false;
-				for (int j = 0; j < i; j++) {
+				for (unsigned int j = 0; j < i; j++) {
 					if (sqrt(pow(xPos - ballV[j]->x, 2.0) + pow(yPos - ballV[j]->y, 2.0)) <= 2.f*ballDia)
 						collision = true;
 				}
@@ -73,17 +67,15 @@ namespace z {
 			ballV.push_back(ball);
 		}
 		
-		for (int i = 0; i < ballV.size(); i++) {
+		for (unsigned int i = 0; i < ballV.size(); i++) {
 			quadTree->addParticle(ballV[i], true);
 		}
 	}
 
 	// Create a spherical cloud of particles
 	void Particles::createCloud(double x, double y, double rad, double vel, double dir,
-										double ballDia, double ballDensity, double springRate, double rebEff,
-										double attrRate, double attrRad, bool stationary, bool ovrWrite) {
+										double ballDia, double ballDensity, bool stationary, bool ovrWrite) {
 		std::vector<int> list;
-		double ballRad = ballDia/2.f;
 		int tempListPos;
 		
 		double xIt, yIt;
@@ -95,14 +87,14 @@ namespace z {
 			if (j%2) xIt = x + ballDia*cos(PI60);
 			else xIt = x;
 			while (sqrt(pow(xIt - x, 2.0) + pow(yIt - y, 2.0)) < rad) {
-				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, ballDensity, springRate, rebEff, attrRate, attrRad, true, ovrWrite);
+				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, ballDensity, true, ovrWrite);
 				if (tempListPos >= 0) list.push_back(tempListPos);
 				xIt += ballDia;
 			}
 			if (j%2) xIt = x - ballDia*cos(PI60);
 			else xIt = x - ballDia;
 			while (sqrt(pow(xIt - x, 2.0) + pow(yIt - y, 2.0)) < rad) {
-				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, ballDensity, springRate, rebEff, attrRate, attrRad, true, ovrWrite);
+				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, ballDensity, true, ovrWrite);
 				if (tempListPos >= 0) list.push_back(tempListPos);
 				xIt -= ballDia;
 			}
@@ -111,7 +103,7 @@ namespace z {
 		}
 		double velX = vel*cos(dir);
 		double velY = vel*sin(dir);
-		for (int j = 0; j < list.size(); j++) {
+		for (unsigned int j = 0; j < list.size(); j++) {
 			if (!stationary) ballV[list[j]]->stationary = false;
 			ballV[list[j]]->xVel = velX;
 			ballV[list[j]]->yVel = velY;
@@ -120,8 +112,7 @@ namespace z {
 	
 	// Singular particle creation with collision checking
 	int Particles::createParticle(double xPos, double yPos, double vel, double dir,
-											double ballDia, double ballDensity, double springRate, double rebEff,
-											double attrRate, double attrRad, bool stationary, bool ovrWrite) {
+											double ballDia, double ballDensity, bool stationary, bool ovrWrite) {
 
 		double radius = ballDia/2.f;
 		bool collision = false;
@@ -129,14 +120,14 @@ namespace z {
 			collision = true;
 		}
 		else if (!ovrWrite) {
-			for (int j = 0; j < ballV.size(); j++) {
+			for (unsigned int j = 0; j < ballV.size(); j++) {
 				if (ballV[j]->alive) {
 					if (sqrt(pow(xPos - ballV[j]->x, 2.0) + pow(yPos - ballV[j]->y, 2.0)) + 0.001 < radius + ballV[j]->radius) {
 						collision = true;
 					}
 				}
 			}
-			for (int k = 0; k < bhV.size(); k++) {
+			for (unsigned int k = 0; k < bhV.size(); k++) {
 				if (bhV[k].active) {
 					if (sqrt(pow(xPos - bhV[k].x, 2.0) + pow(yPos - bhV[k].y, 2.0)) + 0.001 < radius + bhV[k].radius) {
 						collision = true;
@@ -145,7 +136,7 @@ namespace z {
 			}
 		}
 		if (!collision && ballV.size() < MAX_PARTICLES) {
-			int i = 1;
+			unsigned int i = 1;
 			bool inactiveBall = false;
 			while(i < ballV.size()) {
 				if(!ballV[i]->alive) {
@@ -158,9 +149,6 @@ namespace z {
 				ballV[i]->setSize(ballDia);
 				ballV[i]->setMass(ballDensity);
 				ballV[i]->setColor(rand()%255, rand()%255, rand()%255);
-				ballV[i]->springRate = springRate;
-				ballV[i]->reboundEfficiency = rebEff;
-				ballV[i]->setSticky(attrRad, attrRate);
 				ballV[i]->setPosition(xPos, yPos);
 				ballV[i]->alive = true;
 				ballV[i]->stationary = stationary;
@@ -168,13 +156,8 @@ namespace z {
 			}
 			else {
 				z::Ball *ball;
-				ball = new Ball();
-				ball->setSize(ballDia);
-				ball->setMass(ballDensity);
+				ball = new Ball(ballDia, ballDensity);
 				ball->setColor(std::rand()%255, std::rand()%255, std::rand()%255);
-				ball->springRate = springRate;
-				ball->reboundEfficiency = rebEff;
-				ball->setSticky(attrRad, attrRate);
 				ball->setPosition(xPos, yPos);
 				ball->stationary = stationary;
 				quadTree->addParticle(ball, true);
@@ -185,12 +168,9 @@ namespace z {
 		else return -1;
 	}
 	
-	///////////////////////////
-	// Particle Manipulation //
-	///////////////////////////
-	void Particles::createBH(int x, int y, double surfaceAccel, int diameter, InteractionSetting interact) {
+		void Particles::createBH(int x, int y, double surfaceAccel, int diameter, InteractionSetting interact) {
 		if (bhV.size() < MAX_BH) {
-			int i = 1;
+			unsigned int i = 1;
 			bool inactiveBH = false;
 			while(i < bhV.size()) {
 				if(!bhV[i].active) {
@@ -215,49 +195,58 @@ namespace z {
 		}
 	}
 	
+	///////////////////////////
+	// Particle Manipulation //
+	///////////////////////////
+	
 	// Erase dead particles
 	void Particles::cleanParticles() {
-		int front = 0;
-		int back = ballV.size() - 1;
-		while (front < back) {
-			while (ballV[front]->alive && front < ballV.size()) front++; // Find dead ball
-			while (!ballV[back]->alive && back >= 0) back--; // Find live ball
-			if (front < back) std::swap(ballV[front],ballV[back]); // Swap
+		int frontSwap = 0;
+		int backSwap = ballV.size() - 1;
+		while (frontSwap < backSwap) {
+			while (frontSwap < ballV.size() && ballV[frontSwap]->alive) frontSwap++; // Find dead ball
+			while (backSwap > 0 && !ballV[backSwap]->alive) backSwap--; // Find live ball
+			if (frontSwap < backSwap) std::swap(ballV[frontSwap],ballV[backSwap]); // Swap
 		}
 		
-		back = ballV.size();
-		while (back >= 0) {
-			if (!ballV[back-1]->alive) back--;
+		backSwap = ballV.size();
+		while (backSwap > 0) {
+			if (!ballV[backSwap-1]->alive) backSwap--;
 			else break;
 		}
-		if (back < ballV.size()) {
-			int eraseStart = (back <= 50)?50:back;
-			for (int k = eraseStart; k < ballV.size(); k++) delete ballV[k];
+		if (backSwap < ballV.size()) {
+			int eraseStart = (backSwap < 50)?50:backSwap;
+			for (unsigned int k = eraseStart; k < ballV.size(); k++)
+				ballV[k]->quadResidence->checkIfResident(ballV[k]->getID(), true);
 			ballV.erase(ballV.begin()+eraseStart, ballV.end());
 		}
 	}
 	
 	void Particles::cleanBH() {
-		int front = 1;
-		int back = bhV.size() - 1;
-		while (front < back) {
-			while (bhV[front].active && front < bhV.size()) front++; // Find dead ball
-			while (!bhV[back].active && back >= 1) back--; // Find live ball
-			if (front < back) std::swap(bhV[front],bhV[back]); // Swap
+		int frontSwap = 1;
+		int backSwap = bhV.size() - 1;
+		while (frontSwap < backSwap) {
+			while (frontSwap < bhV.size() && bhV[frontSwap].active) frontSwap++; // Find dead ball
+			while (backSwap > 0 && !bhV[backSwap].active) backSwap--; // Find live ball
+			if (frontSwap < backSwap) std::swap(bhV[frontSwap],bhV[backSwap]); // Swap
 		}
 		
-		back = bhV.size();
-		while (back >= 1) {
-			if (!bhV[back-1].active) back--;
+		backSwap = bhV.size();
+		while (backSwap > 0) {
+			if (!bhV[backSwap-1].active) backSwap--;
 			else break;
 		}
-		if (back < bhV.size()) {
-			bhV.erase(bhV.begin()+back, bhV.end());
+		if (backSwap < bhV.size()) {
+			bhV.erase(bhV.begin()+backSwap, bhV.end());
 		}
 	}
 	
+	void Particles::cleanQuad() {
+		quadTree->cleanResidentList();
+	}
+	
 	void Particles::zeroVel() {
-		for (int i = 0; i < ballV.size(); i++) {
+		for (unsigned int i = 0; i < ballV.size(); i++) {
 			if (ballV[i]->alive) {
 				ballV[i]->xVel = 0;
 				ballV[i]->yVel = 0;
@@ -266,10 +255,10 @@ namespace z {
 	}
 	
 	void Particles::clearParticles() {
-		for (int i = 0; i < ballV.size(); i++) {
+		for (unsigned int i = 0; i < ballV.size(); i++) {
 			ballV[i]->alive = false;
 		}
-		for (int j = 1; j < bhV.size(); j++) {
+		for (unsigned int j = 1; j < bhV.size(); j++) {
 			bhV[j].active = false;
 		}
 	}
@@ -277,7 +266,7 @@ namespace z {
 	void Particles::immobilizeCloud(double x, double y, double rad) {
 		prevX = x;
 		prevY = y;
-		for (int i = 0; i < ballV.size(); i++) {
+		for (unsigned int i = 0; i < ballV.size(); i++) {
 			if (ballV[i]->alive) {
 				double dist = sqrt(pow(ballV[i]->x - x, 2.0) + pow(ballV[i]->y - y, 2.0));
 				if (dist <= rad) {
@@ -286,7 +275,7 @@ namespace z {
 				}
 			}
 		}
-		for (int j = 0; j < bhV.size(); j++) {
+		for (unsigned int j = 0; j < bhV.size(); j++) {
 			if (bhV[j].active) {
 				double dist = sqrt(pow(bhV[j].x - x, 2.0) + pow(bhV[j].y - y, 2.0));
 				if (dist <= rad) {
@@ -301,11 +290,11 @@ namespace z {
 		double deltaX = x - prevX;
 		double deltaY = y - prevY;
 		if (deltaX != 0 || deltaY != 0) {
-			for (int j = 0; j < listParticles.size(); j++) {
+			for (unsigned int j = 0; j < listParticles.size(); j++) {
 				ballV[listParticles[j]]->xMove += deltaX;
 				ballV[listParticles[j]]->yMove += deltaY;
 			}
-			for (int k = 0; k < listBH.size(); k++) {
+			for (unsigned int k = 0; k < listBH.size(); k++) {
 				bhV[listBH[k]].xMove += deltaX;
 				bhV[listBH[k]].yMove += deltaY;
 			}
@@ -316,7 +305,7 @@ namespace z {
 	
 	// Called after immobilizeCloud
 	void Particles::mobilizeCloud() {
-		for (int j = 0; j < listParticles.size(); j++) {
+		for (unsigned int j = 0; j < listParticles.size(); j++) {
 			ballV[listParticles[j]]->stationary = false;
 		}
 		listParticles.clear();
@@ -325,7 +314,7 @@ namespace z {
 	
 	// Erase a spherical region of particles
 	void Particles::deactivateCloud(double x, double y, double rad) {
-		for (int i = 0; i < ballV.size(); i++) {
+		for (unsigned int i = 0; i < ballV.size(); i++) {
 			if (ballV[i]->alive) {
 				double dist = sqrt(pow(ballV[i]->x - x, 2.0) + pow(ballV[i]->y - y, 2.0));
 				if (dist <= rad) {
@@ -333,7 +322,7 @@ namespace z {
 				}
 			}
 		}
-		for (int j = 1; j < bhV.size(); j++) {
+		for (unsigned int j = 1; j < bhV.size(); j++) {
 			if (bhV[j].active) {
 				double dist = sqrt(pow(bhV[j].x - x, 2.0) + pow(bhV[j].y - y, 2.0));
 				if (dist <= rad) {
@@ -349,15 +338,15 @@ namespace z {
 	
 	// Sort particles within quad tree
 	void Particles::quadSortParticles(unsigned int iStart, unsigned int iStop) {
-		for (int i = iStart; i < iStop; i++) {
-			ballV[i]->quadResidence->sortParticle(ballV[i]->getID());
+		for (unsigned int i = iStart; i < iStop; i++) {
+			ballV[i]->quadResidence->sortParticle(ballV[i]);
 		}
 	}
 	
 	// Do optimized collision searching
 	void Particles::quadCollideParticles(unsigned int iStart, unsigned int iStop) {
 		if (particleCollisions) {
-			for (int i = iStart; i < iStop; i++) {
+			for (unsigned int i = iStart; i < iStop; i++) {
 				if (ballV[i]->alive) {
 					ballV[i]->quadResidence->collideParticles(ballV[i], true);
 				}
@@ -366,10 +355,10 @@ namespace z {
 	}
 
 	void Particles::addPhysics(unsigned int iStart, unsigned int iStop) {
-		int bhVsize = bhV.size();
+		unsigned int bhVsize = bhV.size();
 		
 		// Singular physics
-		for ( int i = iStart; i < iStop; i++ ) {
+		for (unsigned int i = iStart; i < iStop; i++ ) {
 			if (ballV[i]->stationary == false) {
 				// Particle-boundary collisions
 				if (boundWalls) {
@@ -401,9 +390,9 @@ namespace z {
 				}
 				
 				// Black hole effects
-				for (int k = 0; k < bhVsize; k++) {
+				for (unsigned int k = 0; k < bhVsize; k++) {
 					if (bhV[k].active == true) {
-						double term;
+						double term = 0;
 						double dist = sqrt(pow(ballV[i]->x - bhV[k].x, 2.f) + pow(ballV[i]->y - bhV[k].y, 2.f));
 						if (bhV[k].interact == COLLISION && dist < ballV[i]->radius + bhV[k].radius) { 
 							term = ballV[i]->springRate*(ballV[i]->radius + bhV[k].radius - dist)*(*tickTime);
@@ -416,7 +405,7 @@ namespace z {
 								term = (bhV[k].centerAccel/pow(dist, 2))*(*tickTime);
 							}
 							else {
-								if (bhV[k].interact = DESTRUCTION ){
+								if (bhV[k].interact == DESTRUCTION){
 									ballV[i]->alive = false;
 								}
 								else {
@@ -434,7 +423,7 @@ namespace z {
 			ballV[i]->update();
 		}
 		if (iStart == 0) {
-			for (int k = 0; k < bhVsize; k++) {
+			for (unsigned int k = 0; k < bhVsize; k++) {
 				bhV[k].update();
 			}
 		}
@@ -452,7 +441,9 @@ namespace z {
 		
 		// Check for particle collision
 		if (dist < centerDist) { 
-			double force = ((ballA->springRate + ballA->springRate)/2.f)
+			//double force = ((ballA->springRate + ballB->springRate)/2.f)
+			//							*(centerDist - dist)*(*tickTime);
+			double force = ((ballA->springRate <= ballB->springRate) ? ballA->springRate : ballB->springRate)
 										*(centerDist - dist)*(*tickTime);
 			double forceVect;
 			
@@ -516,11 +507,11 @@ namespace z {
 		double maxVel = 0;
 		double vel;
 		
-		int bVsize = ballV.size();
-		int bhVsize = bhV.size();
+		unsigned int bVsize = ballV.size();
+		unsigned int bhVsize = bhV.size();
 		
 		// Draw all particles in ball vector
-		for (int i = 0; i < bVsize; i++ ) {
+		for (unsigned int i = 0; i < bVsize; i++ ) {
 			if (ballV[i]->alive) {
 				tempCount++;
 				vel = sqrt(pow(ballV[i]->xVel, 2.0) + pow(ballV[i]->yVel, 2.0));
@@ -535,7 +526,7 @@ namespace z {
 		maxParticleVel = maxVel;
 		
 		tempCount = 0;
-		for (int i = 0; i < bhVsize; i++ ) {
+		for (unsigned int i = 0; i < bhVsize; i++ ) {
 			if (bhV[i].active) {
 				//std::cout << "yes\n";
 				tempCount++;

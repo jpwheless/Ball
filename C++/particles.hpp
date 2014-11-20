@@ -18,13 +18,16 @@
 #define PARTICLE_CLEAN 500
 #define BH_CLEAN 10
 
+#define LEVELS 4
+
 namespace z {
 
 class Particles {
-private:
+//private:
+public:
 	Quad* quadTree;
 
-public:
+//public:
 	int *resX, *resY;
 	double *tickTime;
 	double linGravity;
@@ -53,7 +56,7 @@ public:
 	/////////////////
 	Particles(int *resXT, int *resYT, double *tickTimeT, double linGravityT);
 	~Particles() {
-		for (int k = 0; k < ballV.size(); k++) delete ballV[k];
+		for (unsigned int k = 0; k < ballV.size(); k++) delete ballV[k];
 		delete quadTree;
 	}
 	inline double randDouble(double minimum, double maximum) {
@@ -64,10 +67,9 @@ public:
 	///////////////////////
 	// Particle Creation //
 	///////////////////////
-	void createInitBalls(int, double, double, double, double, double, double);
-	void createCloud(double, double, double, double, double, double, double, double, double, double, double, bool, bool);
-	int createParticle(double, double, double, double, double, double, double, double, double, double, bool, bool);
-		
+	void createInitBalls(unsigned int, double, double);
+	void createCloud(double, double, double, double, double, double, double, bool, bool);
+	int createParticle(double, double, double, double, double, double, bool, bool);
 	///////////////////////////
 	// Particle Manipulation //
 	///////////////////////////
@@ -77,6 +79,7 @@ public:
 	}
 	void cleanParticles();
 	void cleanBH();
+	void cleanQuad();
 	void zeroVel();
 	void clearParticles();
 	void immobilizeCloud(double, double, double);

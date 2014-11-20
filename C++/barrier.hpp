@@ -9,11 +9,11 @@ private:
 	unsigned int nThreads;
 
 	// Number of threads currently spinning
-	std::atomic<int>* nWaiting = new std::atomic<int>;
+	std::atomic<unsigned int>* nWaiting = new std::atomic<unsigned int>;
 
 	// Number of barrier syncronizations completed so far, 
 	// it's OK to wrap
-	std::atomic<int>* nComplete = new std::atomic<int>;
+	std::atomic<unsigned int>* nComplete = new std::atomic<unsigned int>;
 	
 public:
 
