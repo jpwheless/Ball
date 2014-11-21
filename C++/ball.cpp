@@ -6,8 +6,12 @@ namespace z {
 		alive = true;
 		stationary = false;
 		x = y = xVel = yVel = 0;
-		setSize(ballDia);
-		setMass(ballDensity);
+		
+		densityClass = ballDensity;
+		diameterClass = ballDia;
+		
+		setSize(diameterClass);
+		setMass(densityClass);
 		
 		quadResidence = NULL;
 		
@@ -62,37 +66,39 @@ namespace z {
 		ballShape.setPosition(x - radius, y - radius);
 	}
 	
-	void Ball::setSize(int diameterClass){
-		diameterClass = constrain(diameterClass, 0, 2);
-		diameter = diameterTable[diameterClass];
+	void Ball::setSize(int diaClass){
+		diaClass = constrain(diaClass, 0, 2);
+		diameter = diameterTable[diaClass];
 		
 		radius = diameter/2.0;
 		ballShape.setRadius(radius);
 	}
 	
-	void Ball::setMass(int densityClass) {
-		densityClass = constrain(densityClass, 0, 2);
+	void Ball::setMass(int densClass) {
+		densClass = constrain(densClass, 0, 2);
 		
 		double area = 3.14159265359*pow(radius, 2.0);
-		mass = area*(densityTable[densityClass]/78.54);
-		springRate = BASE_SPR_RATE*densityTable[densityClass];
+		mass = area*(densityTable[densClass]/78.54);
+		springRate = BASE_SPR_RATE*densityTable[densClass];
 		reboundEfficiency = DEFAULT_REB_EFF;
 		
 		// Convert to center attr rate for physics
-		attrRate = BASE_ATTR_RATE*pow(radius, 2.0)*densityTable[densityClass]; 
+		attrRate = BASE_ATTR_RATE*pow(radius, 2.0)*densityTable[densClass]; 
 		attrRad = DEFAULT_ATTR_RAD;
 		
-		switch (densityClass) {
+		switch (densClass) {
 			case 0:
-				setColor(170 + rand()%85, 170 + rand()%85, 170 + rand()%85);
+				ballShape.setFillColor(sf::Color(255, 255, 255));
 				break;
 			case 1:
-				setColor(85 + rand()%85, 85 + rand()%85, 85 + rand()%85);
+				ballShape.setFillColor(sf::Color(127, 127, 127));
 				break;
 			case 2:
-				setColor(rand()%85, rand()%85, rand()%85);
+				ballShape.setFillColor(sf::Color(0, 0, 0));
 				break;
 		}
+		ballShape.setOutlineThickness(-int(radius*0.4));
+		ballShape.setOutlineColor(sf::Color(rand()%255, rand()%255, rand()%255));
 	}
 		
 	void Ball::setColor(int r, int g, int b) {

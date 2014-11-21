@@ -73,11 +73,12 @@ namespace z {
 
 	// Create a spherical cloud of particles
 	void Particles::createCloud(double x, double y, double rad, double vel, double dir,
-										int ballDia, int ballDensity, bool stationary, bool force) {
+										int diaClass, int densityClass, bool stationary, bool force) {
 		std::vector<int> list;
 		int tempListPos;
-		
+				
 		double xIt, yIt;
+		double ballDia = Ball::diameterTable[diaClass];
 		int rows = (rad)/(ballDia*sin(PI60));
 		yIt = y - rows*ballDia*sin(PI60);
 		int j = 0;
@@ -86,14 +87,14 @@ namespace z {
 			if (j%2) xIt = x + ballDia*cos(PI60);
 			else xIt = x;
 			while (sqrt(pow(xIt - x, 2.0) + pow(yIt - y, 2.0)) < rad) {
-				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, ballDensity, true, force);
+				tempListPos = createParticle(xIt, yIt, 0, 0, diaClass, densityClass, true, force);
 				if (tempListPos >= 0) list.push_back(tempListPos);
 				xIt += ballDia;
 			}
 			if (j%2) xIt = x - ballDia*cos(PI60);
 			else xIt = x - ballDia;
 			while (sqrt(pow(xIt - x, 2.0) + pow(yIt - y, 2.0)) < rad) {
-				tempListPos = createParticle(xIt, yIt, 0, 0, ballDia, ballDensity, true, force);
+				tempListPos = createParticle(xIt, yIt, 0, 0, diaClass, densityClass, true, force);
 				if (tempListPos >= 0) list.push_back(tempListPos);
 				xIt -= ballDia;
 			}
@@ -111,9 +112,10 @@ namespace z {
 	
 	// Singular particle creation with collision checking
 	int Particles::createParticle(double xPos, double yPos, double vel, double dir,
-											int ballDia, int ballDensity, bool stationary, bool force) {
+											int diaClass, int densityClass, bool stationary, bool force) {
 
-		double radius = Ball::diameterTable[((ballDia)<(0)?(0):((ballDia)>(2)?(2):(ballDia)))]/2.0;
+		double radius = Ball::diameterTable[diaClass]/2.0;
+				
 		bool collision = false;
 		if (xPos > *resX - radius || xPos < radius || yPos > *resY - radius || yPos < radius) {
 			collision = true;
@@ -145,8 +147,8 @@ namespace z {
 				i++;
 			}
 			if (inactiveBall) {
-				ballV[i]->setSize(ballDia);
-				ballV[i]->setMass(ballDensity);
+				ballV[i]->setSize(diaClass);
+				ballV[i]->setMass(densityClass);
 				ballV[i]->setPosition(xPos, yPos);
 				ballV[i]->alive = true;
 				ballV[i]->stationary = stationary;
@@ -154,7 +156,7 @@ namespace z {
 			}
 			else {
 				z::Ball *ball;
-				ball = new Ball(ballDia, ballDensity);
+				ball = new Ball(diaClass, densityClass);
 				ball->setPosition(xPos, yPos);
 				ball->stationary = stationary;
 				quadTree->addParticle(ball, true);
@@ -315,6 +317,26 @@ namespace z {
 			if (ballV[i]->alive) {
 				double dist = sqrt(pow(ballV[i]->x - x, 2.0) + pow(ballV[i]->y - y, 2.0));
 				if (dist <= rad) {
+					ballV[i]->alive = false;
+				}
+			}
+		}
+		for (unsigned int j = 1; j < bhV.size(); j++) {
+			if (bhV[j].active) {
+				double dist = sqrt(pow(bhV[j].x - x, 2.0) + pow(bhV[j].y - y, 2.0));
+				if (dist <= rad) {
+					bhV[j].active = false;
+				}
+			}
+		}
+	}
+	
+	// Erase a spherical region of particles if classes match
+	void Particles::deactivateCloud(double x, double y, double rad, int diaClass, int densClass) {
+		for (unsigned int i = 0; i < ballV.size(); i++) {
+			if (ballV[i]->alive) {
+				double dist = sqrt(pow(ballV[i]->x - x, 2.0) + pow(ballV[i]->y - y, 2.0));
+				if (dist <= rad && diaClass == ballV[i]->diameterClass && densClass == ballV[i]->densityClass) {
 					ballV[i]->alive = false;
 				}
 			}

@@ -86,6 +86,7 @@ public:
 	void moveCloud(double, double);
 	void mobilizeCloud();
 	void deactivateCloud(double, double, double);
+	void deactivateCloud(double, double, double, int, int);
 	
 	/////////////
 	// Physics //

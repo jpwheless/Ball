@@ -41,6 +41,8 @@
 
 #define MULTITHREAD true
 
+//==============================
+
 static std::mutex pauseMutex1;
 static std::mutex pauseMutex2;
 static std::condition_variable pauseCV1;
@@ -78,7 +80,10 @@ private:
 	sfg::RadioButton::Ptr mouseFuncShoot; // Shoot
 	sfg::RadioButton::Ptr mouseFuncPlaceBH; // Place Blackhole
 	sfg::RadioButton::Ptr mouseFuncControlBH; // Control Blackhole
+	sfg::RadioButton::Ptr shootFuncClick;
+	sfg::RadioButton::Ptr shootFuncDrag;
 	sfg::CheckButton::Ptr bhPermCheckButton;
+	sfg::CheckButton::Ptr eraseFuncCheckButton;
 	sfg::CheckButton::Ptr paintOvrCheckButton;
 	sfg::CheckButton::Ptr paintForceCheckButton;
 	
@@ -178,7 +183,11 @@ private:
 		else if(mouseFuncPlaceBH->IsActive()) input->mouseMode = 5;
 		else if(mouseFuncControlBH->IsActive()) input->mouseMode = 6;
 		input->modeChanged = true;
-
+	}
+	void buttonShootSelect() {
+		mouseFuncShoot->SetActive(true);
+		if(shootFuncClick->IsActive()) input->shootMode = 1;
+		else if(shootFuncDrag->IsActive()) input->shootMode = 2;
 	}
 	void buttonPermanence() {
 		input->bhPermanent = bhPermCheckButton->IsActive();
@@ -191,6 +200,13 @@ private:
 			particles->bhV[0].active = false;
 		}
 	}
+	void buttonEraseFunc() {
+		if (eraseFuncCheckButton->IsActive()) {
+			input->eraseFuncOnly = true;
+			mouseFuncErase->SetActive(true);
+		}
+		else input->eraseFuncOnly = false;
+	}
 	void buttonPaintOvr() {
 		if (paintOvrCheckButton->IsActive()) {
 			input->paintOvr = true;
@@ -198,7 +214,6 @@ private:
 		}
 		else input->paintOvr = false;
 		mouseFuncPaint->SetActive(true);
-		buttonMouseSelect();
 	}
 	void buttonPaintForce() {
 		if (paintForceCheckButton->IsActive()) {
@@ -207,23 +222,32 @@ private:
 		}
 		else input->paintForce = false;
 		mouseFuncPaint->SetActive(true);
-		buttonMouseSelect();
 	}
 	void scaleTimeAdj() {
 		scaleFactorM = scaleAdjustment->GetValue();
 	}
 	void diameterComboFunc() {
-		input->newBallDia = diameterCombo->GetSelectedItem();
+		int temp = diameterCombo->GetSelectedItem();
+		if (temp >= 0 && temp <= 3) input->newBallDia = temp;
+		else {
+			input->newBallDia = 0;
+			diameterCombo->SelectItem(0);
+		}
 	}
 	void densityComboFunc() {
-		input->newBallDensity = densityCombo->GetSelectedItem();
+		int temp = densityCombo->GetSelectedItem();
+		if (temp >= 0 && temp <= 3) input->newBallDensity = temp;
+		else {
+			input->newBallDensity = 0;
+			densityCombo->SelectItem(0);
+		}
 	}
 	
 	////////////////////
 	// Initialization //
 	////////////////////
 	
-	// Call after initGUI().
+	// Call after initGUI()
 	void initSFML() {
 		sf::Vector2f requisition = guiWindow->GetRequisition();
 		{
@@ -235,8 +259,8 @@ private:
 			"Particles!", sf::Style::Titlebar|sf::Style::Close, 
 			sf::ContextSettings(24, 8, 8, 3, 0)); // Set openGL parameters
 		
-		//mainWindow->setFramerateLimit(60);
-		mainWindow->setVerticalSyncEnabled(true);
+		mainWindow->setFramerateLimit(120);
+		mainWindow->setVerticalSyncEnabled(false);
 
 		input->mainWindow = mainWindow;
 		
@@ -287,7 +311,7 @@ private:
 		auto label4 = sfg::Label::Create();
 		label4->SetText("Time Scaling (Max)");
 		auto label5 = sfg::Label::Create();
-		label5->SetText("New Particles");
+		label5->SetText("Function Particles");
 		auto instructions = sfg::Label::Create();
 		instructions->SetText("Use the scroll wheel along with CTRL or SHIFT to modify mouse functions.");
 		instructions->SetLineWrap(true);
@@ -363,8 +387,17 @@ private:
 		mouseFuncPlaceBH->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonMouseSelect, this));
 		mouseFuncControlBH->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonMouseSelect, this));
 		
+		shootFuncClick = sfg::RadioButton::Create("Click");
+		shootFuncDrag = sfg::RadioButton::Create("Drag", shootFuncClick->GetGroup());
+		shootFuncClick->SetActive(true);
+		shootFuncClick->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonShootSelect, this));
+		shootFuncDrag->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonShootSelect, this));
+		
 		bhPermCheckButton = sfg::CheckButton::Create("Permanent");
 		bhPermCheckButton->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonPermanence, this));
+		
+		eraseFuncCheckButton = sfg::CheckButton::Create("Only Function Particles");
+		eraseFuncCheckButton->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonEraseFunc, this));
 		
 		paintOvrCheckButton = sfg::CheckButton::Create("Overwrite");
 		paintOvrCheckButton->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonPaintOvr, this));
@@ -390,7 +423,14 @@ private:
 		fixed1->Put(paintForceCheckButton, sf::Vector2f(10.0, 20.0));
 		
 		auto fixed2 = sfg::Fixed::Create();
-		fixed2->Put(bhPermCheckButton, sf::Vector2f(10.0, 0.0));
+		fixed2->Put(shootFuncClick, sf::Vector2f(10.0, 0.0));
+		fixed2->Put(shootFuncDrag, sf::Vector2f(10.0, 20.0));
+		
+		auto fixed3 = sfg::Fixed::Create();
+		fixed3->Put(bhPermCheckButton, sf::Vector2f(10.0, 0.0));
+		
+		auto fixed4 = sfg::Fixed::Create();
+		fixed4->Put(eraseFuncCheckButton, sf::Vector2f(10.0, 0.0));
 		
 		boxSim->Pack(bPause);
 		boxSim->Pack(label3);
@@ -418,13 +458,15 @@ private:
 		alignment3->Add(label2);
 		boxMouse->Pack(alignment3, false, true);
 		boxMouse->Pack(mouseFuncErase);
+		boxMouse->Pack(fixed4, false, true);
 		boxMouse->Pack(mouseFuncDrag);
 		boxMouse->Pack(mouseFuncPaint);
 		boxMouse->Pack(fixed1, false, true);
 		boxMouse->Pack(mouseFuncShoot);
+		boxMouse->Pack(fixed2, false, true);
 		boxMouse->Pack(mouseFuncPlaceBH);
 		boxMouse->Pack(mouseFuncControlBH);
-		boxMouse->Pack(fixed2, false, true);
+		boxMouse->Pack(fixed3, false, true);
 				
 		boxMain->Pack(boxSim, false, true);
 		boxMain->Pack(separatorh1, false, true);
@@ -606,6 +648,9 @@ public:
 		frameRateP = 500;
 		frameRateD = 60;
 		scaleFactor = 1.0;
+		
+		clockD.restart();
+		clockP.restart();
 						
 		drawThread->join();
 		calcPhysicsThread1->join();
@@ -623,13 +668,9 @@ public:
 			sf::Vertex(sf::Vector2f(resX, 0)),
 			sf::Vertex(sf::Vector2f(resX, resY))
 		};
-		
-		clockD.restart();
-		
+				
 		while (mainWindow->isOpen()) {
-		
-			std::cout << "1\n";
-		
+				
 			elapsedTimeD = clockD.restart();
 			frameRateD = 0.05*(1.0/elapsedTimeD.asSeconds()) + frameRateD*(1.0 - 0.05);
 
@@ -664,9 +705,7 @@ public:
 						break;
 				}
 			}
-			
-			std::cout << "2\n";
-						
+									
 			input->update();
 			
 			scaleBar->SetFraction(scaleFactor);
@@ -677,9 +716,7 @@ public:
 			particles->draw(mainWindow);
 			input->draw();
 			mainWindow->draw(menuDivider, 2, sf::Lines);
-			
-			std::cout << "3\n";
-			
+						
 			// Draw text/gui
 			if (debugRead) {
 				std::string temp = std::to_string(scaleFactor);
@@ -691,9 +728,7 @@ public:
 											+ "\n" + std::to_string((int)particles->maxParticleVel));
 				mainWindow->draw(fps);
 			}
-			
-			std::cout << "4\n";
-			
+						
 			sfguiW.Display(*mainWindow);
 			
 			// Display drawn objects
@@ -704,9 +739,7 @@ public:
 	// Handle first portion of particles
 	void calcPhysics1() {
 		std::unique_lock<std::mutex> lock1(pauseMutex1);
-		
-		clockP.restart();
-		
+				
 		if (MULTITHREAD) {
 			while(running){
 				if (*threadsPaused) {
@@ -714,22 +747,16 @@ public:
 					clockP.restart();
 				}
 				
-				std::cout << "5\n";
-							
 				*finishFlag1 = false;
 				particles->quadSortParticles(0, *loadBalance1);
 				*finishFlag1 = true;
-				
-				std::cout << "6\n";
 				
 				rendezvous1.wait();
 				
 				*finishFlag2 = false;
 				particles->quadCollideParticles(0, *loadBalance2);
 				*finishFlag2 = true;
-				
-				std::cout << "7\n";
-				
+								
 				rendezvous2.wait();
 				
 				*finishFlag3 = false;
@@ -740,7 +767,7 @@ public:
 					elapsedTimeP = clockP.restart();
 					
 					tickTimeActual = TICKTIME_AVGFILT*elapsedTimeP.asSeconds() + tickTimeActual*(1.0 - TICKTIME_AVGFILT);
-					tickTimeMax = std::min(DIA_SMALL/(2.0*particles->maxParticleVel), MAX_TICKTIME);
+					tickTimeMax = std::min(Ball::diameterTable[DIA_SMALL]/(2.0*particles->maxParticleVel), MAX_TICKTIME);
 					
 					double tempScaleFactor =  std::min(tickTimeMax/tickTimeActual, scaleFactorM);
 					if (scaleFactor > tempScaleFactor) scaleFactor = tempScaleFactor;
@@ -751,9 +778,7 @@ public:
 					
 					frameRateP = 1.0/tickTime;
 				}
-				
-				std::cout << tickTime << "\n";
-				
+					
 				*finishFlag3 = true;
 				
 				rendezvous3.wait();

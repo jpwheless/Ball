@@ -10,14 +10,14 @@
 #define MAX_RAD 200
 #define MIN_RAD 5
 #define VEL_TICK 200
-#define MAX_VEL 8000
-#define MIN_VEL 1000
+#define MAX_VEL 10000.0
+#define MIN_VEL 1000.0
 #define ANG_TICK 0.0872664626
-#define VEL_LINE_SCALE 0.025f
+#define VEL_LINE_SCALE 0.025
 #define MAX_GRAV 400000
 #define MIN_GRAV -400000
-#define GRAV_TICK (MAX_GRAV-MIN_GRAV)/40.f
-#define GRAV_LINE_SCALE 400.f/(MAX_GRAV-MIN_GRAV)
+#define GRAV_TICK (MAX_GRAV-MIN_GRAV)/40.0
+#define GRAV_LINE_SCALE 400.0/(MAX_GRAV-MIN_GRAV)
 #define BHRAD_TICK 1
 #define MAX_BHRAD 20
 #define MIN_BHRAD 5
@@ -38,11 +38,16 @@ public:
 	int mouseX;
 	int mouseY;
 	int mouseMode;
+	int shootMode;
 	int mouseRad;
-	double shootAng;
-	double shootVel;
+	double shootAngClick;
+	double shootAngDrag;
+	double shootVelClick;
+	double shootVelDrag;
 	double bhRad;
 	double bhGrav;
+	
+	double shootOrigin[2];
 	
 	int newBallDia, newBallDensity;
 	
@@ -53,6 +58,8 @@ public:
 	bool mouseHeld;
 	bool mouseReleased;
 	bool modeChanged;
+	bool freezeCircle;
+	bool eraseFuncOnly;
 	
 	bool bhPermanent;
 	bool paintOvr;
@@ -65,16 +72,17 @@ public:
 	Input(z::Particles *p) {
 		particles = p;
 		mouseMode = 1;
+		shootMode = 1;
 		mouseRad = MIN_RAD;
-		shootAng = PIovr2;
-		shootVel = MIN_VEL;
+		shootAngClick = PIovr2;
+		shootVelClick = MIN_VEL;
 		bhGrav = particles->bhV[0].surfaceAccel;
 		
 		resX = particles->resX;
 		resY = particles->resY;
 		shootLine[0] = sf::Vertex(sf::Vector2f(mouseX, mouseY));
-		shootLine[1] = sf::Vertex(sf::Vector2f(mouseX + VEL_LINE_SCALE*shootVel*cos(shootAng),
-																					 mouseY + VEL_LINE_SCALE*shootVel*sin(shootAng)));
+		shootLine[1] = sf::Vertex(sf::Vector2f(mouseX + VEL_LINE_SCALE*shootVelClick*cos(shootAngClick),
+																					 mouseY + VEL_LINE_SCALE*shootVelClick*sin(shootAngClick)));
 		mouseCircle.setRadius(mouseRad);
 		mouseCircle.setOutlineColor(sf::Color::White);
 		mouseCircle.setOutlineThickness(1);
@@ -84,6 +92,8 @@ public:
 		mouseHeld = false;
 		mouseReleased = false;
 		modeChanged = false;
+		freezeCircle = false;
+		eraseFuncOnly = false;
 		
 		bhPermanent = false;
 		paintOvr = false;
@@ -101,10 +111,15 @@ public:
 			mouseX = mousePos.x;
 			mouseY = mousePos.y;
 			
+			if (modeChanged) {
+				freezeCircle = false;
+			}
+			
 			switch(mouseMode) {
 				case 1: // Erase
 					if (sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
-						particles->deactivateCloud(mouseX, mouseY, mouseRad);
+						if (eraseFuncOnly) particles->deactivateCloud(mouseX, mouseY, mouseRad, newBallDia, newBallDensity);
+						else particles->deactivateCloud(mouseX, mouseY, mouseRad);
 					}
 					break;
 				case 2: // Drag
@@ -131,9 +146,38 @@ public:
 					}
 					break;
 				case 4: // Shoot
-					if (mouseReleased && mouseX <= *resX) {
-						particles->deactivateCloud(mouseX, mouseY, mouseRad);
-						particles->createCloud(mouseX, mouseY, mouseRad, shootVel, shootAng, newBallDia, newBallDensity, false, false);
+					switch (shootMode) {
+						case 1:
+							if (mouseReleased && mouseX <= *resX) {
+								particles->deactivateCloud(mouseX, mouseY, mouseRad);
+								particles->createCloud(mouseX, mouseY, mouseRad, shootVelClick, shootAngClick, newBallDia, newBallDensity, false, false);
+							}
+							break;
+						case 2:
+							if (mousePressed && mouseX <= *resX) {
+								freezeCircle = true;
+								shootOrigin[0] = mouseX;
+								shootOrigin[1] = mouseY;
+							}
+							if (mouseHeld && freezeCircle) {
+								shootVelDrag = sqrt(pow(shootOrigin[0]-mouseX, 2.0) + pow(shootOrigin[1]-mouseY, 2.0))/(2.0*VEL_LINE_SCALE);
+								shootVelDrag = (shootVelDrag < MIN_VEL)?(MIN_VEL):((shootVelDrag > MAX_VEL)?MAX_VEL:shootVelDrag);
+								if (shootOrigin[0] == mouseX) {
+									if (shootOrigin[1] == mouseY) shootAngDrag = 0.0;
+									else if (shootOrigin[1] > mouseY) shootAngDrag =  PI + PIovr2;
+									else if (shootOrigin[1] < mouseY) shootAngDrag = PIovr2;
+								}
+								else if (shootOrigin[0] > mouseX)
+									shootAngDrag = PI + atan((shootOrigin[1]-mouseY)/(shootOrigin[0]-mouseX));
+								else if (shootOrigin[0] < mouseX)
+									shootAngDrag = atan((shootOrigin[1]-mouseY)/(shootOrigin[0]-mouseX));
+							}
+							else if (mouseReleased && freezeCircle) {
+								particles->deactivateCloud(shootOrigin[0], shootOrigin[1], mouseRad);
+								particles->createCloud(shootOrigin[0], shootOrigin[1], mouseRad, shootVelDrag, shootAngDrag, newBallDia, newBallDensity, false, false);
+								freezeCircle = false;
+							}
+							break;
 					}
 					break;
 				case 5: // Place Blackhole
@@ -184,13 +228,17 @@ public:
 				case 4:
 					if (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) || 
 							sf::Keyboard::isKeyPressed(sf::Keyboard::RControl)) {
-						shootAng -= event.mouseWheel.delta*ANG_TICK;
-						shootAng = (shootAng < 0.0)?(PI2):((shootAng > PI2)?0.0:shootAng);
+						if (shootMode == 1) {
+							shootAngClick -= event.mouseWheel.delta*ANG_TICK;
+							shootAngClick = (shootAngClick < 0.0)?(PI2):((shootAngClick > PI2)?0.0:shootAngClick);
+						}
 					}
 					else if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) || 
 							sf::Keyboard::isKeyPressed(sf::Keyboard::RShift)) {
-						shootVel += event.mouseWheel.delta*VEL_TICK;
-						shootVel = (shootVel < MIN_VEL)?(MIN_VEL):((shootVel > MAX_VEL)?MAX_VEL:shootVel);
+						if (shootMode == 1) {
+							shootVelClick += event.mouseWheel.delta*VEL_TICK;
+							shootVelClick = (shootVelClick < MIN_VEL)?(MIN_VEL):((shootVelClick > MAX_VEL)?MAX_VEL:shootVelClick);
+						}
 					}
 					else {
 						mouseRad += event.mouseWheel.delta*RAD_TICK;
@@ -241,14 +289,37 @@ public:
 					mainWindow->draw(mouseCircle);
 					break;
 				case 4:
-					mouseCircle.setRadius(mouseRad);
-					mouseCircle.setPosition(mouseX-mouseRad, mouseY-mouseRad);
-					mouseCircle.setFillColor(sf::Color::Transparent);
-					shootLine[0] = sf::Vertex(sf::Vector2f(mouseX, mouseY));
-					shootLine[1] = sf::Vertex(sf::Vector2f(mouseX + VEL_LINE_SCALE*shootVel*cos(shootAng),
-																								 mouseY + VEL_LINE_SCALE*shootVel*sin(shootAng)));
-					mainWindow->draw(mouseCircle);
-					mainWindow->draw(shootLine, 2, sf::Lines);
+					switch (shootMode) {
+						case 1:
+							mouseCircle.setRadius(mouseRad);
+							mouseCircle.setPosition(mouseX-mouseRad, mouseY-mouseRad);
+							mouseCircle.setFillColor(sf::Color::Transparent);
+							shootLine[0] = sf::Vertex(sf::Vector2f(mouseX, mouseY));
+							shootLine[1] = sf::Vertex(sf::Vector2f(mouseX + VEL_LINE_SCALE*shootVelClick*cos(shootAngClick),
+																										 mouseY + VEL_LINE_SCALE*shootVelClick*sin(shootAngClick)));
+							mainWindow->draw(mouseCircle);
+							mainWindow->draw(shootLine, 2, sf::Lines);
+							break;
+						case 2:
+							if (freezeCircle) {
+								mouseCircle.setRadius(mouseRad);
+								mouseCircle.setPosition(shootOrigin[0]-mouseRad, shootOrigin[1]-mouseRad);
+								mouseCircle.setFillColor(sf::Color::Transparent);
+								
+								shootLine[0] = sf::Vertex(sf::Vector2f(shootOrigin[0], shootOrigin[1]));
+								shootLine[1] = sf::Vertex(sf::Vector2f(shootOrigin[0] + 2.0*VEL_LINE_SCALE*shootVelDrag*cos(shootAngDrag),
+																											 shootOrigin[1] + 2.0*VEL_LINE_SCALE*shootVelDrag*sin(shootAngDrag)));
+								mainWindow->draw(mouseCircle);
+								mainWindow->draw(shootLine, 2, sf::Lines);
+							}
+							else {
+								mouseCircle.setRadius(mouseRad);
+								mouseCircle.setPosition(mouseX-mouseRad, mouseY-mouseRad);
+								mouseCircle.setFillColor(sf::Color::Transparent);
+								mainWindow->draw(mouseCircle);
+							}
+							break;
+					}
 					break;
 				case 5:
 					mouseCircle.setRadius(bhRad);

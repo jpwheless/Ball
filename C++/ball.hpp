@@ -38,6 +38,8 @@ public:
 	sf::CircleShape ballShape;
 	bool alive, stationary;
 	
+	int diameterClass, densityClass;
+	
 	static bool *boundCeiling;
 	static bool *boundWalls;
 	static bool *boundFloor;
