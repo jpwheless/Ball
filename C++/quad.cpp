@@ -46,21 +46,21 @@ namespace z {
 	// Particle will be moved to correct location in tree
 	bool Quad::sortParticle(Ball* sortedParticle) {
 		bool found = false;
-		unsigned int pID = sortedParticle->getID();
+		unsigned int pID = sortedParticle->id;
 		unsigned int i;
 		for (i = 0; i < residentList.size() && !found; i++) {
-			if (residentList[i] != NULL && residentList[i]->getID() == pID) {
+			if (residentList[i] != NULL && residentList[i]->id == pID) {
 				found = true;
 				if (trickleParticle(sortedParticle, true)) { // Return true if particle is moved
 					// This function may take some time to return
 					// Another thread may have reordered this residentList
 					// Make sure it's the right particle
-					if (residentList[i]->getID() == pID) 
+					if (residentList[i]->id == pID) 
 						residentList[i] = NULL;
 					else {
 						found = false;
 						for (i = 0; i < residentList.size() && !found; i++) {
-							if (residentList[i] != NULL && residentList[i]->getID() == pID) 
+							if (residentList[i] != NULL && residentList[i]->id == pID) 
 								residentList[i] = NULL;
 						}
 					}
@@ -129,7 +129,7 @@ namespace z {
 		if (resident) { // Find particle in resident list
 			unsigned int i;
 			for (i = 0; i < residentList.size() && !found; i++) {
-				if (residentList[i] != NULL && residentList[i]->getID() == particleA->getID()) {
+				if (residentList[i] != NULL && residentList[i]->id == particleA->id) {
 					found = true;
 					i++;
 					// Collide all particles under it
@@ -160,7 +160,7 @@ namespace z {
 		bool found = false;
 		unsigned int i;
 		for (i = 0; i < residentList.size() && !found; i++) {
-			if (residentList[i] != NULL && residentList[i]->getID() == pID) {
+			if (residentList[i] != NULL && residentList[i]->id == pID) {
 				found = true;
 				if (deleteResident) residentList[i] = NULL;
 			}
@@ -234,7 +234,7 @@ namespace z {
 		
 		/*
 		std::cout << "\n";
-		std::cout << "ID: " << newParticle->getID() << ", Level: " << level << ", ChildNum: " << childNum << "\n";
+		std::cout << "ID: " << newParticle->id << ", Level: " << level << ", ChildNum: " << childNum << "\n";
 		std::cout << "Quad xMin, xMax, yMin, yMax: " << xMin << "\t" << xMax << "\t" << yMin << "\t" << yMax << "\n";
 		std::cout << "Ball xMin, xMax, yMin, yMax: " << boundArray[0] << "\t" << movingParticle->xMax << "\t" << movingParticle->yMin << "\t" << movingParticle->yMax << "\n";
 		std::cout << "\n";
@@ -264,7 +264,7 @@ namespace z {
 		std::cout << ", xMin, xMax, yMin, yMax: " << xMin << "\t" << xMax << "\t" << yMin << "\t" << yMax << "\n";
 		std::cout << "\tResidents: \n";
 		for (unsigned int i = 0; i < residentList.size(); i++) {
-			if (residentList[i] != NULL) std::cout << "\t\t" << residentList[i]->getID() << "\n";
+			if (residentList[i] != NULL) std::cout << "\t\t" << residentList[i]->id << "\n";
 			else std::cout << "\t\tNULL\n";
 		}
 		

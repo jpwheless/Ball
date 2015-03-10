@@ -138,8 +138,8 @@ private:
 		particles->boundWalls = cbBoundWalls->IsActive();
 	}
 	void buttonDebug() {
-		for (unsigned int i = 0; i < particles->ballV.size(); i++) {
-			std::cout << "Particle " << particles->ballV[i]->getID() << ": ";
+		for (unsigned int i = 0; i < particles->pSize; i++) {
+			std::cout << "Particle " << particles->ballV[i]->id << ": ";
 			if (particles->ballV[i]->alive) {
 				std::cout << "Vel = " << sqrt(pow(particles->ballV[i]->xVel, 2.0) + pow(particles->ballV[i]->yVel, 2.0));
 				std::cout <<", x = " << particles->ballV[i]->x << ", y = " << particles->ballV[i]->y << "\n\tLevel: ";
@@ -147,7 +147,7 @@ private:
 				std::cout	<< ", xMin, xMax, yMin, yMax: " << particles->ballV[i]->quadResidence->xMin << "," << particles->ballV[i]->quadResidence->xMax << "," << particles->ballV[i]->quadResidence->yMin << "," << particles->ballV[i]->quadResidence->yMax << "\n";
 				particles->ballV[i]->updateBounds();
 				std::cout << "\t\t\txMin, xMax, yMin, yMax: " << particles->ballV[i]->xMin << "\t" << particles->ballV[i]->xMax << "\t" << particles->ballV[i]->yMin << "\t" << particles->ballV[i]->yMax << "\n";
-				std::cout << "\t\tBall points to Quad Residence: " << ((particles->ballV[i]->quadResidence->checkIfResident(particles->ballV[i]->getID(), false))?"True":"False") << "\n";
+				std::cout << "\t\tBall points to Quad Residence: " << ((particles->ballV[i]->quadResidence->checkIfResident(particles->ballV[i]->id, false))?"True":"False") << "\n";
 			}
 			else {
 				std::cout << "Inactive\n";
@@ -259,8 +259,8 @@ private:
 			"Particles!", sf::Style::Titlebar|sf::Style::Close, 
 			sf::ContextSettings(24, 8, 8, 3, 0)); // Set openGL parameters
 		
-		mainWindow->setFramerateLimit(120);
-		mainWindow->setVerticalSyncEnabled(false);
+		//mainWindow->setFramerateLimit(10000);
+		mainWindow->setVerticalSyncEnabled(true);
 
 		input->mainWindow = mainWindow;
 		
@@ -292,6 +292,8 @@ private:
 	}
 
 	void initGUI() {
+		sfg::Desktop guiDesktop;
+		
 		guiWindow = sfg::Window::Create();
 		guiWindow->SetStyle(guiWindow->GetStyle() ^ sfg::Window::TITLEBAR);
 		guiWindow->SetStyle(guiWindow->GetStyle() ^ sfg::Window::RESIZE);
@@ -311,21 +313,8 @@ private:
 		auto label4 = sfg::Label::Create();
 		label4->SetText("Time Scaling (Max)");
 		auto label5 = sfg::Label::Create();
-		label5->SetText("Function Particles");
-		auto instructions = sfg::Label::Create();
-		instructions->SetText("Use the scroll wheel along with CTRL or SHIFT to modify mouse functions.");
-		instructions->SetLineWrap(true);
+		label5->SetText("New Particles");
 		
-		auto alignment1 = sfg::Alignment::Create();
-		alignment1->SetScale(sf::Vector2f(0.0f, 0.0f ));
-		alignment1->SetAlignment(sf::Vector2f(0.0f, .0f));
-		auto alignment2 = sfg::Alignment::Create();
-		alignment2->SetScale(sf::Vector2f(0.0f, 0.0f ));
-		alignment2->SetAlignment(sf::Vector2f(0.0f, .0f));
-		auto alignment3 = sfg::Alignment::Create();
-		alignment3->SetScale(sf::Vector2f(0.0f, 0.0f ));
-		alignment3->SetAlignment(sf::Vector2f(0.0f, .0f));
-
 		auto separatorh1 = sfg::Separator::Create(sfg::Separator::Orientation::HORIZONTAL);
 		auto separatorh2 = sfg::Separator::Create(sfg::Separator::Orientation::HORIZONTAL);
 		auto separatorh3 = sfg::Separator::Create(sfg::Separator::Orientation::HORIZONTAL);
@@ -351,7 +340,7 @@ private:
 		cbBoundFloor->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonBoundFloor, this));
 		
 		bPause = sfg::ToggleButton::Create("Pause Sim");
-		bPause->GetSignal( sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonPause, this));
+		bPause->GetSignal(sfg::Widget::OnLeftClick).Connect(std::bind(&z::Simulation::buttonPause, this));
 		
 		bDebug = sfg::Button::Create("Debug Print");
 		bDebug->GetSignal(sfg::Widget::OnMouseLeftRelease).Connect(std::bind(&z::Simulation::buttonDebug, this));
@@ -373,10 +362,10 @@ private:
 		scaleAdjustment->SetMajorStep(0.10);
 		scaleAdjustment->GetSignal(sfg::Adjustment::OnChange).Connect(std::bind(&z::Simulation::scaleTimeAdj, this));
 		
-		mouseFuncErase = sfg::RadioButton::Create("Erase");
-		mouseFuncDrag = sfg::RadioButton::Create("Drag", mouseFuncErase->GetGroup());
-		mouseFuncPaint = sfg::RadioButton::Create("Paint", mouseFuncErase->GetGroup());
-		mouseFuncShoot = sfg::RadioButton::Create("Shoot", mouseFuncErase->GetGroup());
+		mouseFuncErase = sfg::RadioButton::Create("Erase Objects");
+		mouseFuncDrag = sfg::RadioButton::Create("Drag Objects", mouseFuncErase->GetGroup());
+		mouseFuncPaint = sfg::RadioButton::Create("Paint Particles", mouseFuncErase->GetGroup());
+		mouseFuncShoot = sfg::RadioButton::Create("Shoot Particles", mouseFuncErase->GetGroup());
 		mouseFuncPlaceBH = sfg::RadioButton::Create("Place Blackhole", mouseFuncErase->GetGroup());
 		mouseFuncControlBH = sfg::RadioButton::Create("Control Blackhole", mouseFuncErase->GetGroup());
 		mouseFuncErase->SetActive(true);
@@ -386,22 +375,28 @@ private:
 		mouseFuncShoot->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonMouseSelect, this));
 		mouseFuncPlaceBH->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonMouseSelect, this));
 		mouseFuncControlBH->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonMouseSelect, this));
+		mouseFuncErase->SetId("MajorCheck");
+		mouseFuncDrag->SetId("MajorCheck");
+		mouseFuncPaint->SetId("MajorCheck");
+		mouseFuncShoot->SetId("MajorCheck");
+		mouseFuncPlaceBH->SetId("MajorCheck");
+		mouseFuncControlBH->SetId("MajorCheck");
 		
-		shootFuncClick = sfg::RadioButton::Create("Click");
-		shootFuncDrag = sfg::RadioButton::Create("Drag", shootFuncClick->GetGroup());
+		shootFuncClick = sfg::RadioButton::Create("Single Click");
+		shootFuncDrag = sfg::RadioButton::Create("Click & Drag", shootFuncClick->GetGroup());
 		shootFuncClick->SetActive(true);
 		shootFuncClick->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonShootSelect, this));
 		shootFuncDrag->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonShootSelect, this));
 		
-		bhPermCheckButton = sfg::CheckButton::Create("Permanent");
+		bhPermCheckButton = sfg::CheckButton::Create("Stay on Screen");
 		bhPermCheckButton->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonPermanence, this));
 		
-		eraseFuncCheckButton = sfg::CheckButton::Create("Only Function Particles");
+		eraseFuncCheckButton = sfg::CheckButton::Create("Selected Only");
 		eraseFuncCheckButton->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonEraseFunc, this));
 		
 		paintOvrCheckButton = sfg::CheckButton::Create("Overwrite");
 		paintOvrCheckButton->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonPaintOvr, this));
-		paintForceCheckButton = sfg::CheckButton::Create("Force");
+		paintForceCheckButton = sfg::CheckButton::Create("Forced Paint");
 		paintForceCheckButton->GetSignal(sfg::ToggleButton::OnToggle).Connect(std::bind(&z::Simulation::buttonPaintForce, this));
 		
 		densityCombo = sfg::ComboBox::Create();
@@ -432,6 +427,19 @@ private:
 		auto fixed4 = sfg::Fixed::Create();
 		fixed4->Put(eraseFuncCheckButton, sf::Vector2f(10.0, 0.0));
 		
+		auto fixed5 = sfg::Fixed::Create();
+		fixed5->Put(label1, sf::Vector2f(0.0, 0.0));
+		
+		auto fixed6 = sfg::Fixed::Create();
+		fixed6->Put(label5, sf::Vector2f(0.0, 0.0));
+		
+		auto fixed7 = sfg::Fixed::Create();
+		fixed7->Put(label2, sf::Vector2f(0.0, 0.0));
+		
+		auto instructions = sfg::Label::Create();
+		instructions->SetLineWrap(false);
+		instructions->SetText("Use the scroll wheel\nalong with CTRL or\nSHIFT to modify mouse\nfunctions.");
+		
 		boxSim->Pack(bPause);
 		boxSim->Pack(label3);
 		boxSim->Pack(scaleBar);
@@ -441,8 +449,7 @@ private:
 		boxSim->Pack(bStop);
 		boxSim->Pack(bDebug);
 		
-		alignment2->Add(label1);
-		boxParam->Pack(alignment2, false, true);
+		boxParam->Pack(fixed5, false, true);
 		boxParam->Pack(cbCollision);
 		boxParam->Pack(cbStickyness);
 		boxParam->Pack(cbGravity);
@@ -450,13 +457,11 @@ private:
 		boxParam->Pack(cbBoundWalls);
 		boxParam->Pack(cbBoundFloor);
 				
-		alignment1->Add(label5);
-		boxParticles->Pack(alignment1, false, true);
+		boxParticles->Pack(fixed6, false, true);
 		boxParticles->Pack(diameterCombo);
 		boxParticles->Pack(densityCombo);
 		
-		alignment3->Add(label2);
-		boxMouse->Pack(alignment3, false, true);
+		boxMouse->Pack(fixed7, false, true);
 		boxMouse->Pack(mouseFuncErase);
 		boxMouse->Pack(fixed4, false, true);
 		boxMouse->Pack(mouseFuncDrag);
@@ -467,7 +472,7 @@ private:
 		boxMouse->Pack(mouseFuncPlaceBH);
 		boxMouse->Pack(mouseFuncControlBH);
 		boxMouse->Pack(fixed3, false, true);
-				
+		
 		boxMain->Pack(boxSim, false, true);
 		boxMain->Pack(separatorh1, false, true);
 		boxMain->Pack(boxParam, false, true);
@@ -479,6 +484,12 @@ private:
 		boxMain->Pack(instructions, false, true);
 		
 		guiWindow->Add(boxMain);
+				
+		guiDesktop.Add(guiWindow);
+		
+		//guiDesktop.SetProperty("#MajorCheck", "BoxSize", 20.0f);
+		//guiDesktop.SetProperty("#MajorCheck", "CheckSize", 12.0f);
+		//guiDesktop.SetProperty("#MajorCheck", "FontSize", 14);
 		
 		guiWindow->SetPosition(sf::Vector2f(resX, 0));
 	}
@@ -632,9 +643,9 @@ public:
 		calcPhysicsThread1 = new std::thread(&Simulation::calcPhysics1, this);
 		if (MULTITHREAD) {
 			calcPhysicsThread2 = new std::thread(&Simulation::calcPhysics2, this);
-			*loadBalance1 = particles->ballV.size() / 2.0;
-			*loadBalance2 = particles->ballV.size() / 2.0;
-			*loadBalance3 = particles->ballV.size() / 2.0;
+			*loadBalance1 = particles->pSize / 2.0;
+			*loadBalance2 = particles->pSize / 2.0;
+			*loadBalance3 = particles->pSize / 2.0;
 		}
 		else {
 			*loadBalance1 = 0;
@@ -668,6 +679,8 @@ public:
 			sf::Vertex(sf::Vector2f(resX, 0)),
 			sf::Vertex(sf::Vector2f(resX, resY))
 		};
+		
+		sf::Event event;
 				
 		while (mainWindow->isOpen()) {
 				
@@ -675,7 +688,6 @@ public:
 			frameRateD = 0.05*(1.0/elapsedTimeD.asSeconds()) + frameRateD*(1.0 - 0.05);
 
 			// Handle events
-			sf::Event event;
 			while (mainWindow->pollEvent(event)) {
 				guiWindow->HandleEvent(event);
 				switch(event.type) {
@@ -723,7 +735,7 @@ public:
 				temp.resize(4);
 				fps.setString(std::to_string((int)frameRateP) + "," + temp + "," + std::to_string((int)frameRateD) + "\n" + 
 											std::to_string(*loadBalance1) + "," + std::to_string(*loadBalance2) + "," + std::to_string(*loadBalance3)
-											+ "\n" + std::to_string(particles->ballV.size()) + "," + std::to_string(particles->ballAlive)
+											+ "\n" + std::to_string(particles->pSize) + "," + std::to_string(particles->ballAlive)
 											+ "\n" + std::to_string(particles->bhV.size()) + "," + std::to_string(particles->bhAlive)
 											+ "\n" + std::to_string((int)particles->maxParticleVel));
 				mainWindow->draw(fps);
@@ -776,7 +788,7 @@ public:
 					
 					tickTime = tickTimeActual*scaleFactor;
 					
-					frameRateP = 1.0/tickTime;
+					frameRateP = 1.0/tickTimeActual;
 				}
 					
 				*finishFlag3 = true;
@@ -791,10 +803,10 @@ public:
 					clockP.restart();
 				}
 			
-				particles->quadSortParticles(0, particles->size());
-				particles->quadCollideParticles(0, particles->size());
+				particles->quadSortParticles(0, particles->pSize);
+				particles->quadCollideParticles(0, particles->pSize);
 				particles->cleanQuad();
-				particles->addPhysics(0, particles->size());
+				particles->addPhysics(0, particles->pSize);
 				
 				{ // Timekeeping
 					elapsedTimeP = clockP.restart();
@@ -809,7 +821,7 @@ public:
 					
 					tickTime = tickTimeActual*scaleFactor;
 					
-					frameRateP = 1.0/tickTime;
+					frameRateP = 1.0/tickTimeActual;
 				}
 			}
 		}
@@ -823,25 +835,25 @@ public:
 				pauseCV2.wait(lock2);
 			}
 		
-			particles->quadSortParticles(*loadBalance1, particles->size());
+			particles->quadSortParticles(*loadBalance1, particles->pSize);
 			if (*finishFlag1 == true) {
-				 if (*loadBalance1 < particles->size() - 1) *loadBalance1 = *loadBalance1 + 1;
+				 if (*loadBalance1 < particles->pSize - 1) *loadBalance1 = *loadBalance1 + 1;
 			}
 			else if (*loadBalance1 > 0) *loadBalance1 = *loadBalance1 - 1;
 			
 			rendezvous1.wait();
 			
-			particles->quadCollideParticles(*loadBalance2, particles->size());
+			particles->quadCollideParticles(*loadBalance2, particles->pSize);
 			if (*finishFlag2 == true) {
-				 if (*loadBalance2 < particles->size() - 1) *loadBalance2 = *loadBalance2 + 1;
+				 if (*loadBalance2 < particles->pSize - 1) *loadBalance2 = *loadBalance2 + 1;
 			}
 			else if (*loadBalance2 > 0) *loadBalance2 = *loadBalance2 - 1;
 
 			rendezvous2.wait();
 			
-			particles->addPhysics(*loadBalance3, particles->size());
+			particles->addPhysics(*loadBalance3, particles->pSize);
 			if (*finishFlag3 == true) {
-				 if (*loadBalance3 < particles->size() - 1) *loadBalance3 = *loadBalance3 + 1;
+				 if (*loadBalance3 < particles->pSize - 1) *loadBalance3 = *loadBalance3 + 1;
 			}
 			else if (*loadBalance3 > 0) *loadBalance3 = *loadBalance3 - 1;
 						

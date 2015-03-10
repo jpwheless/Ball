@@ -23,10 +23,8 @@ namespace z {
 //class Quad;
 
 class Ball {
-private:
-	unsigned int id; // This never changes and is unique after using the setID function
-
 public:
+	unsigned int id; // This never changes and is unique after using the setID function
 	double x, y;
 	double xMove, yMove;
 	double xVel, yVel;
@@ -60,7 +58,6 @@ public:
 	void setMass(int);
 	void setColor(int, int, int);
 	void setID();
-	unsigned long int getID();
 	void updateBounds();
 };
 }

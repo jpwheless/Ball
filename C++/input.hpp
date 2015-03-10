@@ -113,6 +113,7 @@ public:
 			
 			if (modeChanged) {
 				freezeCircle = false;
+				particles->mobilizeCloud();
 			}
 			
 			switch(mouseMode) {

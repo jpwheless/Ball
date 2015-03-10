@@ -6,12 +6,9 @@ namespace z {
 		alive = true;
 		stationary = false;
 		x = y = xVel = yVel = 0;
-		
-		densityClass = ballDensity;
-		diameterClass = ballDia;
-		
-		setSize(diameterClass);
-		setMass(densityClass);
+				
+		setSize(ballDia);
+		setMass(ballDensity);
 		
 		quadResidence = NULL;
 		
@@ -36,20 +33,6 @@ namespace z {
 				xMove = x;
 				yMove = y;
 				
-				// Boundary conditions
-				/*
-				if (*boundCeiling == true) {
-					if (x < -50 || x > (*resX) + 50) {
-						x = (x < radius)?(radius):((x > (*resX)-radius)?((*resX)-radius):x);
-						xVel *= 0.1f;
-					}
-					if (y < -50 || y > (*resY) + 50) {
-						y = (y < radius)?(radius):((y > (*resY)-radius)?((*resY)-radius):y);
-						yVel *= 0.1f;
-					}
-				}
-				else {
-				*/
 				if ((!*boundWalls && (x < -radius || x > (*resX) + radius)) ||
 						(!*boundCeiling && y < -radius) || (!*boundFloor && y > (*resY) + radius)) {
 					alive = false;
@@ -68,14 +51,18 @@ namespace z {
 	
 	void Ball::setSize(int diaClass){
 		diaClass = constrain(diaClass, 0, 2);
-		diameter = diameterTable[diaClass];
+		this->diameter = diameterTable[diaClass];
 		
-		radius = diameter/2.0;
+		this->diameterClass = diaClass;
+		
+		this->radius = diameter/2.0;
 		ballShape.setRadius(radius);
 	}
 	
 	void Ball::setMass(int densClass) {
 		densClass = constrain(densClass, 0, 2);
+		
+		this->densityClass = densClass;
 		
 		double area = 3.14159265359*pow(radius, 2.0);
 		mass = area*(densityTable[densClass]/78.54);
@@ -112,10 +99,6 @@ namespace z {
 			id = idCounter;
 			idCounter++;
 		}
-	}
-	
-	unsigned long int Ball::getID() {
-		return id;
 	}
 	
 	// Fills array with xMin, xMax, yMin, yMax of bounding box

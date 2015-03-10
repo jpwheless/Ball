@@ -12,6 +12,8 @@ namespace z {
 		tickTime = tickTimeT;
 		linGravity = linGravityT;
 		
+		pSize = 0;
+		
 		Quad::particles = this;
 		quadTree = new Quad(NULL, 0, LEVELS, 0, 0, *resX, 0, *resY);
 		
@@ -64,6 +66,7 @@ namespace z {
 			
 			ball->setPosition(xPos, yPos);
 			ballV.push_back(ball);
+			pSize++;
 		}
 		
 		for (unsigned int i = 0; i < ballV.size(); i++) {
@@ -161,6 +164,7 @@ namespace z {
 				ball->stationary = stationary;
 				quadTree->addParticle(ball, true);
 				ballV.push_back(ball);
+				pSize++;
 				return ballV.size() - 1;
 			}
 		}
@@ -216,8 +220,9 @@ namespace z {
 		if (backSwap < ballV.size()) {
 			int eraseStart = (backSwap < 50)?50:backSwap;
 			for (unsigned int k = eraseStart; k < ballV.size(); k++)
-				ballV[k]->quadResidence->checkIfResident(ballV[k]->getID(), true);
+				ballV[k]->quadResidence->checkIfResident(ballV[k]->id, true);
 			ballV.erase(ballV.begin()+eraseStart, ballV.end());
+			pSize = ballV.size();
 		}
 	}
 	
@@ -245,7 +250,7 @@ namespace z {
 	}
 	
 	void Particles::zeroVel() {
-		for (unsigned int i = 0; i < ballV.size(); i++) {
+		for (unsigned int i = 0; i < pSize; i++) {
 			if (ballV[i]->alive) {
 				ballV[i]->xVel = 0;
 				ballV[i]->yVel = 0;
@@ -254,7 +259,7 @@ namespace z {
 	}
 	
 	void Particles::clearParticles() {
-		for (unsigned int i = 0; i < ballV.size(); i++) {
+		for (unsigned int i = 0; i < pSize; i++) {
 			ballV[i]->alive = false;
 		}
 		for (unsigned int j = 1; j < bhV.size(); j++) {
@@ -265,7 +270,7 @@ namespace z {
 	void Particles::immobilizeCloud(double x, double y, double rad) {
 		prevX = x;
 		prevY = y;
-		for (unsigned int i = 0; i < ballV.size(); i++) {
+		for (unsigned int i = 0; i < pSize; i++) {
 			if (ballV[i]->alive) {
 				double dist = sqrt(pow(ballV[i]->x - x, 2.0) + pow(ballV[i]->y - y, 2.0));
 				if (dist <= rad) {
@@ -313,7 +318,7 @@ namespace z {
 	
 	// Erase a spherical region of particles
 	void Particles::deactivateCloud(double x, double y, double rad) {
-		for (unsigned int i = 0; i < ballV.size(); i++) {
+		for (unsigned int i = 0; i < pSize; i++) {
 			if (ballV[i]->alive) {
 				double dist = sqrt(pow(ballV[i]->x - x, 2.0) + pow(ballV[i]->y - y, 2.0));
 				if (dist <= rad) {
@@ -333,7 +338,7 @@ namespace z {
 	
 	// Erase a spherical region of particles if classes match
 	void Particles::deactivateCloud(double x, double y, double rad, int diaClass, int densClass) {
-		for (unsigned int i = 0; i < ballV.size(); i++) {
+		for (unsigned int i = 0; i < pSize; i++) {
 			if (ballV[i]->alive) {
 				double dist = sqrt(pow(ballV[i]->x - x, 2.0) + pow(ballV[i]->y - y, 2.0));
 				if (dist <= rad && diaClass == ballV[i]->diameterClass && densClass == ballV[i]->densityClass) {
@@ -384,29 +389,62 @@ namespace z {
 					if (ballV[i]->x > *resX - ballV[i]->radius) {
 						// Ball linear spring rate w/ wall rebound efficiency
 						ballV[i]->xVel += ((*resX - ballV[i]->radius) - ballV[i]->x)*ballV[i]->springRate*
-						((ballV[i]->xVel < 0) ? ballV[i]->reboundEfficiency : 1.0)*(*tickTime);
+						((ballV[i]->xVel < 0.0) ? ballV[i]->reboundEfficiency : 1.0)*(*tickTime);
+						if (ballV[i]->x > *resX - 0.2*ballV[i]->radius && ballV[i]->xVel > 0.0) {
+							ballV[i]->xVel = -ballV[i]->xVel*ballV[i]->reboundEfficiency;
+						}
 					}
 					else if (ballV[i]->x < ballV[i]->radius) {    
 						ballV[i]->xVel += (ballV[i]->radius - ballV[i]->x)*ballV[i]->springRate*
-						((ballV[i]->xVel > 0) ? ballV[i]->reboundEfficiency : 1.0)*(*tickTime);
+						((ballV[i]->xVel > 0.0) ? ballV[i]->reboundEfficiency : 1.0)*(*tickTime);
+						if (ballV[i]->x < -0.2*ballV[i]->radius && ballV[i]->xVel < 0.0) {
+							ballV[i]->xVel = -ballV[i]->xVel*ballV[i]->reboundEfficiency;
+						}
 					}
 				}
 				if (ballV[i]->y > *resY - ballV[i]->radius) {
 					if (boundFloor) {
 						ballV[i]->yVel += ((*resY - ballV[i]->radius) - ballV[i]->y)*ballV[i]->springRate*
-						((ballV[i]->yVel < 0) ? ballV[i]->reboundEfficiency : 1.0)*(*tickTime);
+						((ballV[i]->yVel < 0.0) ? ballV[i]->reboundEfficiency : 1.0)*(*tickTime);
+						if (ballV[i]->y > *resY - 0.2*ballV[i]->radius && ballV[i]->yVel > 0.0) {
+							ballV[i]->yVel = -ballV[i]->yVel*ballV[i]->reboundEfficiency;
+						}
 					}
 				}
 				else if (ballV[i]->y < ballV[i]->radius) {
 					if (boundCeiling) {
 						ballV[i]->yVel += (ballV[i]->radius - ballV[i]->y)*ballV[i]->springRate*
 						((ballV[i]->yVel > 0) ? ballV[i]->reboundEfficiency : 1.0)*(*tickTime);
+						if (ballV[i]->y < -0.2*ballV[i]->radius && ballV[i]->yVel < 0) {
+							ballV[i]->yVel = -ballV[i]->yVel*ballV[i]->reboundEfficiency;
+						}
 					}
 				}
 				else {
 					// Linear gravity
 					ballV[i]->yVel += (linGravity)*(*tickTime);
 				}
+				
+				/*
+				if (dist < centerDist*0.2) {
+					if((ballA->x < ballB->x && ballA->xVel > ballB->xVel) ||
+						(ballA->x > ballB->x && ballA->xVel < ballB->xVel)) {
+						
+						double velocity = (ballA->xVel*ballA->mass + ballB->xVel*ballB->mass)/(ballA->mass + ballB->mass);
+						
+						ballA->xVel = velocity;
+						ballB->xVel = velocity;
+					}
+					if((ballA->y < ballB->y && ballA->yVel > ballB->yVel) ||
+						(ballA->y > ballB->y && ballA->yVel < ballB->yVel)) {
+						
+						double velocity = (ballA->yVel*ballA->mass + ballB->yVel*ballB->mass)/(ballA->mass + ballB->mass);
+						
+						ballA->yVel = velocity;
+						ballB->yVel = velocity;
+					}									
+				}
+				*/
 				
 				// Black hole effects
 				for (unsigned int k = 0; k < bhVsize; k++) {
@@ -526,7 +564,7 @@ namespace z {
 		double maxVel = 0;
 		double vel;
 		
-		unsigned int bVsize = ballV.size();
+		unsigned int bVsize = pSize;
 		unsigned int bhVsize = bhV.size();
 		
 		// Draw all particles in ball vector
@@ -536,7 +574,6 @@ namespace z {
 				vel = sqrt(pow(ballV[i]->xVel, 2.0) + pow(ballV[i]->yVel, 2.0));
 				if (vel > maxVel) maxVel = vel;
 				mainWindow->draw(ballV[i]->ballShape);
-				;
 			}
 		}
 		ballAlive = tempCount;

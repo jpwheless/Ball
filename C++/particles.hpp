@@ -49,6 +49,8 @@ public:
 	int ballAlive;
 	int bhAlive;
 	
+	unsigned int pSize;
+	
 	double maxParticleVel;
 	
 	/////////////////
@@ -74,9 +76,6 @@ public:
 	// Particle Manipulation //
 	///////////////////////////
 	void createBH(int, int, double, int, InteractionSetting);
-	inline int size() {
-		return ballV.size();
-	}
 	void cleanParticles();
 	void cleanBH();
 	void cleanQuad();
